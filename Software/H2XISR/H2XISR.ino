@@ -1,3 +1,7 @@
+/*
+ * Copyright 2017, 2018 John Archbold
+*/
+
 // Pin definitions for HBX interface
 // =================================
 #define HDA1            8           // Pin2, 4, 6 on HBX interface
