@@ -3,6 +3,8 @@
 */
 
 
+#include <Arduino.h>
+
 /********************************************************
   Test HBX communications
   =======================
@@ -10,7 +12,7 @@
 void HBXTestLoop(void) {
   TestCount = 0;
   while (digitalRead(TESTHBX) == 0) {
-    Serial.println("Test HBX commands to ETX");
+    dbgSerial.println("Test HBX commands to ETX");
     HBXTest();
     TestCount += 1;
     TestLoopTime = millis();
@@ -27,20 +29,10 @@ void HBXTest(void)
 
   // Initialize HBX communications as outputs
   // It will use I2C-like communications
-  Serial.println("**********************************************");
-  Serial.print("Test Number - ");
-  Serial.println(TestCount);
-  Serial.println("**********************************************");
-//do {  
-  digitalWrite(FROMHBX, HIGH);   
-  Serial1.println("**********************************************");
-//  TimerDelaymS(100);  
-  Serial1.print("Test Number - ");
-//  TimerDelaymS(100);  
-  Serial1.println(TestCount++);
-  digitalWrite(FROMHBX, LOW);
-   
-//} while(1);
+  dbgSerial.println("**********************************************");
+  dbgSerial.print("Test Number - ");
+  dbgSerial.println(TestCount);
+  dbgSerial.println("**********************************************");
 
     HCL1Talk();                 // Set for Talking on RAClk
     HCL2Talk();                 // Set for Talking on DECClk
@@ -51,7 +43,7 @@ void HBXTest(void)
 
 //if (TestCount == 0) {
   
-    Serial.println("Test - HBX Initialization");  
+    dbgSerial.println("Test - HBX Initialization");  
     axis[AzMotor].HBXPosn = ETX_CENTRE;
     axis[AzMotor].HBXTarget = axis[AzMotor].HBXPosn;
     axis[AzMotor].HBXDirSpeed = 0x000;
@@ -65,7 +57,7 @@ void HBXTest(void)
     axis[AltMotor].HBXMotorStatus = MOVESTEP;
   
     // Reset the motors (RA and DEC)  
-    Serial.println("Test - Wait for motors");
+    dbgSerial.println("Test - Wait for motors");
   
     // GetLED commands always return a vaild value - motors not online until this happens
     // Valid values are not 0 and not 0xFF for Az, Alt. (exception here is if LEDRA || LEDAlt == 0xff)
@@ -81,20 +73,19 @@ void HBXTest(void)
       if ((P2 != 0) && (P2 != 0xFF)) P1 += 1;
       TimerDelaymS(CMNDTIME);
     } while (P1 < 2);
+
       
   // Stop the motors (Az and Alt) 
-    Serial.println("Test - Stop motors");
+    dbgSerial.println("Test - Stop motors");
     HBXStop2Motors();
   
   // Read status
-    Serial.println("Test - Read Status");
+    dbgSerial.println("Test - Read Status");
     HBXGet2Status();          // Check and read both motor states
-
-
-  
+#ifndef mDue
     if (!check_eeprom_crc() || !EEPROM.read(EEPROMAzLEDI) || !EEPROM.read(EEPROMAltLEDI)) {
     // Calibrate Az, Alt Motor Encoder LED currents
-      Serial.println("Test - Calibrate RA, DEC Motor Encoder LED currents");
+      dbgSerial.println("Test - Calibrate RA, DEC Motor Encoder LED currents");
       if (HBXSendCommand(CalibrateLED, AzMotor));
       TimerDelaymS(2500);
       HBXPrintStatus(AzMotor);
@@ -116,15 +107,7 @@ void HBXTest(void)
       axis[AltMotor].HBXP1 = axis[AltMotor].HBXLEDI;
       HBXPrintStatus(AltMotor);
     }
-  
-    Serial.println("Test - Get Motor Type and set ETX Encoder LED currents");
-    axis[AzMotor].MotorType = 0x00; 
-    while (!axis[AzMotor].MotorType) {
-      if (HBXSendCommand(GetMotorType, AzMotor))
-        axis[AzMotor].MotorType = HBXGetByte(AzMotor);
-      HBXPrintStatus(AzMotor);
-    }
-     
+
     axis[AzMotor].HBXLEDI = EEPROM.read(EEPROMAzLEDI);
     axis[AltMotor].HBXLEDI = EEPROM.read(EEPROMAltLEDI);
 
@@ -137,6 +120,18 @@ void HBXTest(void)
       HBXSendByte(axis[AltMotor].HBXLEDI, AltMotor);
     axis[AltMotor].HBXP1 = axis[AltMotor].HBXLEDI;
     HBXPrintStatus(AltMotor);
+    
+#endif
+  
+    dbgSerial.println("Test - Get Motor Type and set ETX Encoder LED currents");
+    axis[AzMotor].MotorType = 0x00; 
+    while (!axis[AzMotor].MotorType) {
+      if (HBXSendCommand(GetMotorType, AzMotor))
+        axis[AzMotor].MotorType = HBXGetByte(AzMotor);
+      HBXPrintStatus(AzMotor);
+    }
+     
+
    
   // Set the Offset to Zero
     axis[AzMotor].HBXP1 = 0x00;             
@@ -147,7 +142,7 @@ void HBXTest(void)
     axis[AltMotor].HBXP3 = 0x00;
       
   // Set the Offset Clear Command     
-    Serial.println("Test - Reset any ETX offset bytes");
+    dbgSerial.println("Test - Reset any ETX offset bytes");
     if (HBXSendCommand(SetOffset, AzMotor))
       HBXSend2Bytes(AzMotor);
 //    HBXPrintStatus(AzMotor);
@@ -159,71 +154,170 @@ void HBXTest(void)
     TimerDelaymS(CMNDTIME);
 
 //} 
-
-    Serial.println("Test - Stop motors");
+/*
+    dbgSerial.println("Test - Stop motors");
     HBXStop2Motors();       
 // First Read, clear counters
-    Serial.println("Test - Read Both Motor States");
+    dbgSerial.println("Test - Read Both Motor States");
     HBXGet2Status();
 
-    Serial.println("Test - Begin motor move tests");
+    dbgSerial.println("Test - Begin motor move tests");
 //}  
   // Test different motor speeds
-    Serial.println("Test - Motor Speed Tests"); 
-    Serial.println("========================"); 
+    dbgSerial.println("Test - Motor Speed Tests"); 
+    dbgSerial.println("========================"); 
  
-    Serial.println("Test - SIDEREAL"); 
+    dbgSerial.println("Test - SIDEREAL"); 
     axis[AzMotor].HBXMotorStatus |= MOVEDIRN;        // Forward
     axis[AltMotor].HBXMotorStatus |= MOVEDIRN;
     axis[AzMotor].HBXSpeed = AzSIDEREALRATE;          // Sidereal
     axis[AltMotor].HBXSpeed = AltSIDEREALRATE;   
     HBXPrintPosn(5, 1000);           // Show location each second   
-    Serial.println("Test - SIDEREAL - Stop motors");
+    dbgSerial.println("Test - SIDEREAL - Stop motors");
     HBXStop2Motors();    
 
-    Serial.println("Test - OneDegree/sec forward"); 
+    dbgSerial.println("Test - OneDegree/sec forward"); 
     axis[AzMotor].HBXMotorStatus |= MOVEDIRN;        // Forward
     axis[AltMotor].HBXMotorStatus |= MOVEDIRN;
     axis[AzMotor].HBXSpeed = AzDEGREERATE1;           // One degree/sec
     axis[AltMotor].HBXSpeed = AltDEGREERATE1;         // One degree/sec
     HBXPrintPosn(5, 500);           // Show location each tenth of a second 
-    Serial.println("Test - OneDegree/sec forward - Stop motors");
+    dbgSerial.println("Test - OneDegree/sec forward - Stop motors");
     HBXStop2Motors();
 
-    Serial.println("Test - OneDegree/sec reverse"); 
+    dbgSerial.println("Test - OneDegree/sec reverse"); 
     axis[AzMotor].HBXMotorStatus &= ~MOVEDIRN;          // Reverse
     axis[AltMotor].HBXMotorStatus &= ~MOVEDIRN;
     axis[AzMotor].HBXSpeed = AzDEGREERATE1;           // One degree/sec
     axis[AltMotor].HBXSpeed = AltDEGREERATE1;         // One degree/sec
     HBXPrintPosn(5, 500);           // Show location each each tenth of a second    
-    Serial.println("Test - OneDegree/sec reverse - Stop motors");
+    dbgSerial.println("Test - OneDegree/sec reverse - Stop motors");
     HBXStop2Motors();
       
-    Serial.println("Test - TwoDegrees/sec forward"); 
+    dbgSerial.println("Test - TwoDegrees/sec forward"); 
     axis[AzMotor].HBXMotorStatus |= MOVEDIRN;        // Forward
     axis[AltMotor].HBXMotorStatus |= MOVEDIRN;
     axis[AzMotor].HBXSpeed = AzDEGREERATE1*2;         // Two degrees/sec
     axis[AltMotor].HBXSpeed = AltDEGREERATE1*2;       // Two degrees/sec
     HBXPrintPosn(5, 1000);           // Show location each tenth of a second 
-    Serial.println("Test - TwoDegrees/sec forward - Stop motors");
+    dbgSerial.println("Test - TwoDegrees/sec forward - Stop motors");
     HBXStop2Motors();
 
-    Serial.println("Test - TwoDegrees/sec reverse"); 
+    dbgSerial.println("Test - TwoDegrees/sec reverse"); 
     axis[AzMotor].HBXMotorStatus &= ~MOVEDIRN;          // Reverse
     axis[AltMotor].HBXMotorStatus &= ~MOVEDIRN;
     axis[AzMotor].HBXSpeed = AzDEGREERATE1*2;         // Two degrees/sec
     axis[AltMotor].HBXSpeed = AltDEGREERATE1*2;       // Two degrees/sec
     HBXPrintPosn(5, 1000);           // Show location each each tenth of a second    
-    Serial.println("Test - TwoDegrees/sec reverse - Stop motors");
+    dbgSerial.println("Test - TwoDegrees/sec reverse - Stop motors");
+*/
     HBXStop2Motors();
+    HBXGet2Status();
+  
+    dbgSerial.println("Test - 0x00 Command");
 
+    HBXStop2Motors();
+    HBXGet2Status();
+    
+    axis[AzMotor].HBXMotorStatus |= (MOVEDIRN | MOVESTEP);        // Forward
+    axis[AltMotor].HBXMotorStatus |= (MOVEDIRN | MOVESTEP);
+    axis[AzMotor].HBXMotorStatus |= MOVELOW;        // Low speed
+    axis[AltMotor].HBXMotorStatus |= MOVELOW;
+    axis[AzMotor].HBXTargetSpeed = AzSIDEREALRATE;         // Start at Sidereal
+    axis[AltMotor].HBXTargetSpeed = AltSIDEREALRATE;       // Start at Sidereal
+    axis[AzMotor].HBXDelta = 0x200;                        // For startup
+    axis[AltMotor].HBXDelta = 0x200;                        // For startup
+   
+    do {
+      HBXPrintSpeed(1, 4096);                        // Print location
+      axis[AzMotor].HBXTargetSpeed += AzSIDEREALRATE*4;
+      axis[AltMotor].HBXTargetSpeed += AltSIDEREALRATE*4;
+    } while (axis[AzMotor].HBXTargetSpeed < (long) 128*AzSIDEREALRATE);
+    
+    dbgSerial.println("Test - 0x00 Command - Stop motors");
+    HBXStop2Motors();
+    HBXGet2Status();
+    
+    dbgSerial.println("Test - 0x01 Command");
+    axis[AzMotor].HBXMotorStatus |= (MOVEDIRN | MOVESTEP);        // Forward
+    axis[AltMotor].HBXMotorStatus |= (MOVEDIRN | MOVESTEP);
+    axis[AzMotor].HBXMotorStatus &= ~MOVELOW;        // High speed
+    axis[AltMotor].HBXMotorStatus &= ~MOVELOW;
+    axis[AzMotor].HBXTargetSpeed = 6460;                    // Start at Sidereal
+    axis[AltMotor].HBXTargetSpeed = 6880;                   // Scaled by gear ratio
+    axis[AzMotor].HBXDelta = 0x200;                        // For startup
+    axis[AltMotor].HBXDelta = 0x200;                        // For startup
+   
+    do {
+      HBXPrintSpeed(1, 4096);                        // Print location
+      axis[AzMotor].HBXTargetSpeed += 6460*4;
+      axis[AltMotor].HBXTargetSpeed += 6880*4;
+    } while (axis[AzMotor].HBXTargetSpeed < (long) 128*6460);
+    
+    dbgSerial.println("Test - 0x01 Command - Stop motors");
+    HBXStop2Motors();  
+while(1);
+    
 // Read status
-  Serial.println("Test - Read Status");
+  dbgSerial.println("Test - Read Status");
   HBXGet2Status();
 
   // Stop the motors (Az and Alt) 
-  Serial.println("Test - Stop motors");
+  dbgSerial.println("Test - Stop motors");
   HBXStop2Motors();  
+}
+
+
+void HBXPrintSpeed(unsigned int count, unsigned int duration) {
+    int j = 0;
+    
+    axis[AzMotor].HBXPosn = ETX_CENTRE;        // Reset position
+    axis[AltMotor].HBXPosn = ETX_CENTRE;
+    PreviousTime = millis();
+ 
+    HBXStart2Motors();                // Start the motors
+
+    do {
+      ETXState(AzMotor);            // Check the Az motor state
+      ETXState(AltMotor);           // Check the Alt motor state
+      while ((millis() - PreviousTime) < duration);
+      dbgSerial.print(millis() - PreviousTime);
+      dbgSerial.print(", ");
+      PreviousTime = millis();
+      SendSpeed();
+      j += 1;
+    } while(j < count);
+}
+
+void SendSpeed() {
+
+    dbgSerial.print(axis[AzMotor].HBXCmnd, HEX);
+    dbgSerial.print(", ");
+    
+    HBXGetStatus(AzMotor);
+    axis[AzMotor].HBXDelta = axis[AzMotor].HBXP1 * 256 + axis[AzMotor].HBXP2;
+    HBXGetStatus(AltMotor);    
+    axis[AltMotor].HBXDelta = axis[AltMotor].HBXP1 * 256 + axis[AltMotor].HBXP2;
+       
+    dbgSerial.print("Az, ");
+    dbgSerial.print(axis[AzMotor].HBXTargetSpeed);
+    dbgSerial.print(", ");
+    dbgSerial.print(axis[AzMotor].HBXSpeed);
+    dbgSerial.print(", ");
+    dbgSerial.print(axis[AzMotor].HBXPosn);
+    dbgSerial.print(", ");
+    dbgSerial.print(axis[AzMotor].HBXDelta);
+
+    dbgSerial.print(", Alt, ");
+    dbgSerial.print(axis[AltMotor].HBXTargetSpeed);
+    dbgSerial.print(", ");
+    dbgSerial.print(axis[AltMotor].HBXSpeed);
+    dbgSerial.print(", ");
+    dbgSerial.print(axis[AltMotor].HBXPosn);
+    dbgSerial.print(", ");
+    dbgSerial.println(axis[AltMotor].HBXDelta);
+
+
 }
 
 void HBXPrintPosn(unsigned int count, unsigned int duration) {
@@ -240,18 +334,18 @@ void HBXPrintPosn(unsigned int count, unsigned int duration) {
     do {
       ETXState(AzMotor);            // Check the Az motor state
       ETXState(AltMotor);           // Check the Alt motor state
-      SendPosn(duration);             // Duration is delay between reads
+      SendData(duration);             // Duration is delay between reads
       j += 1;
     } while(j < count);
 }
 
-void SendPosn(unsigned int duration) {
+void SendData(unsigned int duration) {
 
-//    Serial.println("  SendPosn"); 
+//    dbgSerial.println("  SendPosn"); 
 
     while ((millis() - PreviousTime) < duration) ;  // 1/10 second
-    Serial.print(millis() - PreviousTime);
-    Serial.print(" - ");
+    dbgSerial.print(millis() - PreviousTime);
+    dbgSerial.print(" - ");
     PreviousTime = millis();
 
     HBXGetStatus(AzMotor);
@@ -260,96 +354,96 @@ void SendPosn(unsigned int duration) {
     HBXGetStatus(AltMotor);    
     axis[AltMotor].HBXDelta = axis[AltMotor].HBXP1 * 256 + axis[AltMotor].HBXP2;
        
-    Serial.print("Az = ");
-    Serial.print(axis[AzMotor].HBXPosn);
-    Serial.print(" : ");
-    Serial.print(axis[AzMotor].HBXDelta);    
-    Serial.print(", Alt = ");
-    Serial.print(axis[AltMotor].HBXPosn);
-    Serial.print(" : ");
-    Serial.println(axis[AltMotor].HBXDelta);
+    dbgSerial.print("Az = ");
+    dbgSerial.print(axis[AzMotor].HBXPosn);
+    dbgSerial.print(" : ");
+    dbgSerial.print(axis[AzMotor].HBXDelta);    
+    dbgSerial.print(", Alt = ");
+    dbgSerial.print(axis[AltMotor].HBXPosn);
+    dbgSerial.print(" : ");
+    dbgSerial.println(axis[AltMotor].HBXDelta);
 }
 
 void HBXPrintStatus(unsigned char Motor) {
   axis[Motor].HBXCount = 0;
   if ((axis[Motor].HBXCmnd != GetStatus) || (axis[Motor].HBXP1 | axis[Motor].HBXP2 | axis[Motor].HBXP3 | axis[Motor].HBXP4) || axis[Motor].PrintStatus0 ) {
-    Serial.print("Motor: ");
-    Serial.print(Motor);
-    Serial.print(", Cmnd: ");
-    Serial.print(axis[Motor].HBXCmnd, HEX);
-    Serial.print(" -  ");
+    dbgSerial.print("Motor: ");
+    dbgSerial.print(Motor);
+    dbgSerial.print(", Cmnd: ");
+    dbgSerial.print(axis[Motor].HBXCmnd, HEX);
+    dbgSerial.print(" -  ");
   
       switch (axis[Motor].HBXCmnd) {
         case RotateSlow:
-            Serial.print("RotateSlow ");
+            dbgSerial.print("RotateSlow ");
             axis[Motor].HBXCount = 3;
             break;
         case RotateFast:
-            Serial.print("RotateFast ");
+            dbgSerial.print("RotateFast ");
             axis[Motor].HBXCount = 3;
             break;
         case SetOffset:
-            Serial.print("SetOffset ");
+            dbgSerial.print("SetOffset ");
             axis[Motor].HBXCount = 4;
             break;
         case SetLEDI:
-            Serial.print("SetLEDI ");
+            dbgSerial.print("SetLEDI ");
             axis[Motor].HBXCount = 1;
             break;
         case CalibrateLED:
-            Serial.print("CalibrateLED ");
+            dbgSerial.print("CalibrateLED ");
             break;
         case Stop:
-            Serial.print("Stop ");
+            dbgSerial.print("Stop ");
             break;
         case SlewReverse:
-            Serial.print("SlewReverse ");
+            dbgSerial.print("SlewReverse ");
             break;
         case SlewForward:
-            Serial.print("SlewForward ");
+            dbgSerial.print("SlewForward ");
             break;
         case GetStatus:
-            Serial.print("GetStatus ");
+            dbgSerial.print("GetStatus ");
             axis[Motor].HBXCount = 4;
             break;
         case GetLEDI:
-            Serial.print("GetLEDI ");
+            dbgSerial.print("GetLEDI ");
             axis[Motor].HBXCount = 1;
             break;
         case GetMotorType:
-            Serial.print("GetMotorType ");
+            dbgSerial.print("GetMotorType ");
             axis[Motor].HBXP1 = axis[Motor].MotorType;
             axis[Motor].HBXCount = 1;
             break;
         case ResetH2X:
-            Serial.print("ResetH2X ");
+            dbgSerial.print("ResetH2X ");
             break;
         default:
-            Serial.print("UNKNOWN ");
+            dbgSerial.print("UNKNOWN ");
             break;
       }
       
     if (axis[Motor].HBXCount) {
-      Serial.print(", Data: ");
-      Serial.print(axis[Motor].HBXP1, HEX);
-      if (axis[Motor].HBXCount > 1)  Serial.print(", ");
+      dbgSerial.print(", Data: ");
+      dbgSerial.print(axis[Motor].HBXP1, HEX);
+      if (axis[Motor].HBXCount > 1)  dbgSerial.print(", ");
       axis[Motor].HBXCount -= 1;
     }
     if (axis[Motor].HBXCount) {
-      Serial.print(axis[Motor].HBXP2, HEX);
-      if (axis[Motor].HBXCount > 1)  Serial.print(", ");
+      dbgSerial.print(axis[Motor].HBXP2, HEX);
+      if (axis[Motor].HBXCount > 1)  dbgSerial.print(", ");
       axis[Motor].HBXCount -= 1;
     }
     if (axis[Motor].HBXCount) {
-      Serial.print(axis[Motor].HBXP3, HEX);
-      if (axis[Motor].HBXCount > 1)  Serial.print(", ");
+      dbgSerial.print(axis[Motor].HBXP3, HEX);
+      if (axis[Motor].HBXCount > 1)  dbgSerial.print(", ");
       axis[Motor].HBXCount -= 1;
     }
     if (axis[Motor].HBXCount) {
-      Serial.print(axis[Motor].HBXP4, HEX);
+      dbgSerial.print(axis[Motor].HBXP4, HEX);
       axis[Motor].HBXCount -= 1;
     }
-    Serial.println("");
+    dbgSerial.println("");
   }
 }
 
@@ -364,24 +458,32 @@ bool HBXStop2Motors(void) {
 bool HBXStart2Motors(void) {
   axis[AzMotor].ETXMotorState = ETXCheckStartup;
   axis[AzMotor].HBXMotorStatus |= MOVEAXIS;
+//    dbgSerial.print("1Az, ");
+//    dbgSerial.println(axis[AzMotor].HBXSpeed);  
   ETXState(AzMotor);
+//    dbgSerial.print("2Az, ");
+//    dbgSerial.println(axis[AzMotor].HBXSpeed);  
   axis[AltMotor].ETXMotorState = ETXCheckStartup;
   axis[AltMotor].HBXMotorStatus |= MOVEAXIS;
+//    dbgSerial.print("3Az, ");
+//    dbgSerial.println(axis[AzMotor].HBXSpeed);  
   ETXState(AltMotor);
+//    dbgSerial.print("4Az, ");
+//    dbgSerial.println(axis[AzMotor].HBXSpeed);  
   return(true);    
 }
 
 void HBXPrintPosn(unsigned char Motor) {
   if (Motor == MotorAz) {
     digitalWrite(FROMHBX, HIGH);    // Set Indicator LED
-    Serial.println("");
-    Serial.print("Time: ");
-    Serial.print(millis());
-//    Serial.print(StatusTimer - StatusTime);
+    dbgSerial.println("");
+    dbgSerial.print("Time: ");
+    dbgSerial.print(millis());
+//    dbgSerial.print(StatusTimer - StatusTime);
 //    StatusTime = StatusTimer;
 
 
-/*    Serial.print(" AzRaw: ");
+/*    dbgSerial.print(" AzRaw: ");
     puthexb(axis[AzMotor].HBXP1);
     putbyte(',');
     puthexb(axis[AzMotor].HBXP2);
@@ -390,13 +492,13 @@ void HBXPrintPosn(unsigned char Motor) {
     putbyte(',');
     puthexb(axis[AzMotor].HBXP4);
 */
-    Serial.print("  AzPosn: ");
+    dbgSerial.print("  AzPosn: ");
     puthexl(axis[AzMotor].HBXPosn);
     putbyte(',');
     puthexl(axis[AzMotor].HBXTarget);
     putbyte(',');
     puthexl(axis[AzMotor].HBXSlowDown);
-    Serial.print("  AzSpeed: ");
+    dbgSerial.print("  AzSpeed: ");
     puthexl(axis[AzMotor].HBXSpeed);
     putbyte(',');
     puthexl(axis[AzMotor].HBXTargetSpeed);
@@ -408,7 +510,7 @@ void HBXPrintPosn(unsigned char Motor) {
   }
   else {    
 /*  
- *   Serial.print(" AltRaw: ");
+ *   dbgSerial.print(" AltRaw: ");
     puthexb(axis[AltMotor].HBXP1);
     putbyte(',');
     puthexb(axis[AltMotor].HBXP2);
@@ -417,13 +519,13 @@ void HBXPrintPosn(unsigned char Motor) {
     putbyte(',');
     puthexb(axis[AltMotor].HBXP4);
     */
-    Serial.print(" AltPosn: ");
+    dbgSerial.print(" AltPosn: ");
     puthexl(axis[AltMotor].HBXPosn);
     putbyte(',');
     puthexl(axis[AltMotor].HBXTarget);
     putbyte(',');
     puthexl(axis[AltMotor].HBXSlowDown);
-    Serial.print(" AltSpeed: ");
+    dbgSerial.print(" AltSpeed: ");
     puthexl(axis[AltMotor].HBXSpeed);
     putbyte(',');
     puthexl(axis[AltMotor].HBXTargetSpeed);
@@ -431,7 +533,7 @@ void HBXPrintPosn(unsigned char Motor) {
     puthexw(axis[AltMotor].HBXMotorStatus);
     putbyte(',');
     puthexw(axis[AltMotor].HBXMotorControl);
-    Serial.println("");
+    dbgSerial.println("");
   }
     digitalWrite(FROMHBX, LOW);     // Clear Indicator LED
 }

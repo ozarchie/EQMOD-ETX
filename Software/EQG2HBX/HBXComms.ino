@@ -3,6 +3,8 @@
 */
 
 
+#include <Arduino.h>
+
 /********************************************************
   HBX Comms related functions
   ===========================
@@ -39,17 +41,17 @@ bool HBXStartSequence(unsigned char Motor) {
 // Set clock low
   if (Motor == MotorAz) digitalWrite(HCL1, LOW);
   else digitalWrite(HCL2, LOW);
-  TimerDelayuS(DSTABLE);          // Wait for answer
+  TimerDelayuS(HBXBitTime >> 1);          // Wait for answer
 
 // Wait for data low by MC, or timeout
   H2XStart = micros();              // Get the start microseconds
   do {                              // Wait for MC to answer with HDA1 = 0
     H2XTimer = micros() - H2XStart;
-  } while ((digitalRead(HDA1) == 1) && (H2XTimer < (BITTIME << 3)));
-  TimerDelayuS(DGLITCH);            // Just in case of data line glitch
+  } while ((digitalRead(HDA1) == 1) && (H2XTimer < (HBXBitTime << 3)));
+  TimerDelayuS((HBXBitTime >> 5));            // Just in case of data line glitch
 
-// Check if (data low transition) or ( MC timeout)
-  if ((digitalRead(HDA1) == 1) || (H2XTimer >= (BITTIME << 3))) {
+// Re-read data line, check if (data low transition) or (MC timeout)
+  if ((digitalRead(HDA1) == 1) || (H2XTimer >= (HBXBitTime << 3))) {
     if (Motor == MotorAz) digitalWrite(HCL1, HIGH);
     else digitalWrite(HCL2, HIGH);    
     return(false);                  // Error Exit if no response from Motor
@@ -58,17 +60,17 @@ bool HBXStartSequence(unsigned char Motor) {
 // Set clock high if data low transition (i.e. MC acknowledged clock)
   if (Motor == MotorAz) digitalWrite(HCL1, HIGH);
   else digitalWrite(HCL2, HIGH);
-  TimerDelayuS(DSTABLE);
+  TimerDelayuS(HBXBitTime >> 1);
   
 // Wait for data line release by MC,  or timeout
   H2XStart = micros();              // Get the start microseconds
   do {                              // Wait for MC to answer
     H2XTimer = micros() - H2XStart;
-  } while ((digitalRead(HDA1) == 0) && (H2XTimer < (BITTIME << 3)));
-  TimerDelayuS(BITTIME);
+  } while ((digitalRead(HDA1) == 0) && (H2XTimer < (HBXBitTime << 3)));
+  TimerDelayuS(HBXBitTime);
 
 // Check timeout for data line released
-  if (H2XTimer >= 8*BITTIME) {
+  if (H2XTimer >= (HBXBitTime << 3)) {
     return(false);                  // Error Exit if no response from Motor
   }
   return(true);                     // Success                     
@@ -92,13 +94,13 @@ void HBXSendByte(unsigned char databyte, unsigned char Motor) {
 // Set data bit
 		if (databyte & mask) digitalWrite(HDA1, HIGH);
 		else digitalWrite(HDA1, LOW);
-    TimerDelayuS(DSTABLE);        // Let data stabilise
+    TimerDelayuS(HBXBitTime >> 1);        // Let data stabilise
 		mask = mask >> 1;             // Next data bit
 
 // Set clock low
     if (Motor == MotorAz) digitalWrite(HCL1, LOW);
     else digitalWrite(HCL2, LOW);
-    TimerDelayuS(LOWTIME);
+    TimerDelayuS(HBXBitTime);
     
     if (!(axis[Motor].HBXBitCount)) { // Last bit -> force float on data
       digitalWrite(HDA1, LOW);
@@ -108,12 +110,12 @@ void HBXSendByte(unsigned char databyte, unsigned char Motor) {
 // Set clock high
     if (Motor == MotorAz) digitalWrite(HCL1, HIGH);
     else digitalWrite(HCL2, HIGH);
-    TimerDelayuS(HIGHTIME-DSTABLE); // Data is written DSTABLE before clock low
+    TimerDelayuS(HBXBitTime-(HBXBitTime >> 1)); // Data is written DSTABLE before clock low
 
 // for 8 bits
 	} 	while (axis[Motor].HBXBitCount);
 
-  TimerDelayuS(DSTABLE);        // Last high clock
+  TimerDelayuS(HBXBitTime >> 1);        // Last high clock
 }
 
 // HBX Send two bytes in sequence
@@ -148,18 +150,18 @@ unsigned char HBXGetByte(unsigned char Motor) {
 // Set clock low
 		if (Motor == MotorAz) digitalWrite(HCL1, LOW);
 		else digitalWrite(HCL2, LOW);
-    TimerDelayuS(DSTABLE);
+    TimerDelayuS(HBXBitTime >> 1);
 
 // Read data bit
 		axis[Motor].HBXData = axis[Motor].HBXData << 1;				// Shift previous bit
 		if (digitalRead(HDA1)) axis[Motor].HBXData |=	0x01;		// Read next bit
 		axis[Motor].HBXBitCount--;								            // Need eight bits
-    TimerDelayuS(LOWTIME-DSTABLE);            // Wait for low time
+    TimerDelayuS(HBXBitTime-(HBXBitTime >> 1));            // Wait for low time
 
 // Set clock high
     if (Motor == MotorAz) digitalWrite(HCL1, HIGH);
     else digitalWrite(HCL2, HIGH);
-    TimerDelayuS(HIGHTIME);
+    TimerDelayuS(HBXBitTime);
 	}  
 
 
@@ -174,23 +176,23 @@ void HBXGet3Bytes(unsigned char Motor) {
   unsigned char b;
   
 	axis[Motor].HBXP1 = HBXGetByte(Motor);
-  TimerDelayuS(HIGHTIME);
+  TimerDelayuS(HBXBitTime);
 	axis[Motor].HBXP2 = HBXGetByte(Motor);
-  TimerDelayuS(HIGHTIME);
+  TimerDelayuS(HBXBitTime);
 	axis[Motor].HBXP3 = HBXGetByte(Motor);
-  TimerDelayuS(HIGHTIME);
+  TimerDelayuS(HBXBitTime);
 	axis[Motor].HBXP4 = 0;
 
 // Read 'byte4' = error bit
 // ------------------------
 	if (Motor == MotorAz)	digitalWrite(HCL1, LOW);
 	else digitalWrite(HCL2, LOW);
-	TimerDelayuS(DSTABLE);
+	TimerDelayuS(HBXBitTime >> 1);
 	axis[Motor].HBXP4 |= digitalRead(HDA1);		  // Read the error bit
-  TimerDelayuS(LOWTIME-DSTABLE);
+  TimerDelayuS(HBXBitTime-(HBXBitTime >> 1));
   if (Motor == MotorAz)digitalWrite(HCL1, HIGH);
   else digitalWrite(HCL2, HIGH);
-	TimerDelayuS(HIGHTIME); 
+	TimerDelayuS(HBXBitTime); 
 
   axis[Motor].HBXCount = 4;
 }

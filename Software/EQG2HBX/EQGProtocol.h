@@ -6,6 +6,9 @@
   EQG Protocol function definitions
   =================================
  *********************************************************/
+
+#include <Arduino.h>
+
 #ifndef EQGProtocol
 #define EQGProtocol
 

@@ -3,6 +3,8 @@
 */
 
 
+#include <Arduino.h>
+
 /********************************************************
   EQG Protocol function definitions
   =================================
@@ -12,10 +14,25 @@
 
 // Pin definitions for HBX interface
 // =================================
+#ifdef m2560
 #define HDA1            8           // Pin2, 4, 6 on HBX interface
 #define HCL1            2           // Pin3 on HBX interface
 #define HDA2            10          // Not used
 #define HCL2            3           // Pin5 on HBX interface
+#endif
+
+#ifdef mDue
+#define HDA1            8           // Pin2, 4, 6 on HBX interface
+#define HCL1            2           // Pin3 on HBX interface
+#define HDA2            10          // Not used
+#define HCL2            3           // Pin5 on HBX interface
+#endif
+
+#ifdef  mESP32
+#define HDA1            25
+#define HCL1            26
+#define HCL2            27
+#endif
 
 #define CR              0x0d
 #define LF              0x0a
@@ -25,15 +42,17 @@
 
 #define H2XRESETTIME  25             // Reset H2X bus
 #define BITTIME       120            // H2X clock ~200uS i.e 100us Low/High
+#define HIGHTIME      120            // H2X clock ~200uS i.e 100us Low/High
 #define LOWTIME       120            // H2X clock ~200uS i.e 100us Low/High
 #define DSTABLE       60             // H2X data write delay ~ 50uS
 #define DGLITCH       5              // H2X data glitch sample
-#define HIGHTIME      120            // H2X clock ~200uS i.e 100us Low/High
 #define ETXDELAY      6.55           // H2X ETX poll delay (mS)
 #define CMNDTIME      1              // H2X command delay (mS)
 #define STARTTIME     50             // H2X startup time for motors
 #define CLOCKTIMEOUT  50             // H2X Clock transition timeout (uS) (for monitor mode)
 #define MOTORDETECT   500            // H2X Detect Motor controller
+
+unsigned char HBXBitTime = 128;
 
 void TimerDelayuS(unsigned int);
 

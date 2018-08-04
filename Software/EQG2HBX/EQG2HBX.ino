@@ -2,13 +2,40 @@
  * Copyright 2017, 2018 John Archbold
 */
 
+#include <Arduino.h>
+
 /********************************************************
   Initialize HBX, translate EQG to HBX
   ====================================
  *********************************************************/
- 
-#include <Arduino.h>
+#define m2560
+#undef mDue
+#undef mESP32
+
+#ifdef m2560
 #include <EEPROM.h>
+#endif
+
+#ifdef mESP32
+#include "HardwareSerial.h"
+HardwareSerial Serial1(2);
+#endif
+
+#ifdef m2560
+#define dbgSerial Serial
+#define EQGSerial Serial1
+#endif
+#ifdef mDue
+#define dbgSerial Serial
+#define EQGSerial Serial1
+#endif
+#ifdef mESP32
+#define dbgSerial Serial
+#define EQGSerial Serial1
+#endif
+
+#define EEPROMLENGTH 256
+
 #include "EQGProtocol.h"
 #include "ETXProtocol.h"
 #include "HBXComms.h"
@@ -34,32 +61,59 @@ void setup()
   digitalWrite(AzLED, LOW);
   digitalWrite(AltLED, LOW);
 
+#ifdef m2560
   pinMode(MONITORHBX, INPUT_PULLUP);     // Initialize Operation jumpers
   pinMode(TESTHBX, INPUT_PULLUP);
   digitalWrite(MONITORHBX, HIGH);
   digitalWrite(TESTHBX, HIGH);   
+#endif
 
+#ifdef mDue
+  pinMode(MONITORHBX, INPUT_PULLUP);     // Initialize Operation jumpers
+  pinMode(TESTHBX, INPUT_PULLUP);
+  digitalWrite(MONITORHBX, HIGH);
+  digitalWrite(TESTHBX, HIGH);   
+#endif
+
+#ifdef m2560
+  dbgSerial.begin(115200);                // debug
+  EQGSerial.begin(9600);                  // EQG
+#endif
+
+#ifdef mDue
+  dbgSerial.begin(115200);                // debug
+  EQGSerial.begin(9600);                  // EQG
+#endif
+
+#ifdef mESP32
+  dbgSerial.begin(115200);                // debug
+  EQGSerial.begin(9600);                  // EQG
+#endif
+
+  dbgSerial.println("ETX V5.01");
+  EQGSerial.println("ETX-EQMOD V1.01");
+  digitalWrite(FROMEQG, HIGH);        // Initialize Indicator LEDS
+  delay(1000);
+  digitalWrite(FROMEQG, LOW);        // Initialize Indicator LEDS
+ 
   axis[AzMotor].PrintStatus0 = 0;         // Disable printing status polls with no change
   axis[AltMotor].PrintStatus0 = 0;        // Disable printing status polls with no change
-  
-  // Initialize EQG communications
-  Serial.begin(115200);                     // Debug
-  Serial.println("ETX V5.01");
-  Serial1.begin(9600);                    // EQMOD
-  Serial1.println("ETX-EQMOD");
-  Serial2.begin(9600);
-  Serial3.begin(9600);
-    
-  Serial.print("EEPROM length: ");
-  Serial.println(EEPROM.length());
-  Serial.print("CRC32 of EEPROM data: 0x");
-  Serial.print(eeprom_crc(), HEX);
+
+//  Serial2.begin(9600);
+//  Serial3.begin(9600);
+
+#ifndef mDue
+  dbgSerial.print("EEPROM length: ");
+  dbgSerial.println(EEPROMLENGTH);
+  dbgSerial.print("CRC32 of EEPROM data: 0x");
+  dbgSerial.print(eeprom_crc(), HEX);
   if (!check_eeprom_crc()) {
-    Serial.println(" - crc failed");
+    dbgSerial.println(" - crc failed");
     set_eeprom_crc();
     check_eeprom_crc();
   } 
-  else Serial.println(" - crc OK");
+  else dbgSerial.println(" - crc OK");
+#endif
 
 
 // **************************
@@ -77,12 +131,12 @@ void setup()
   }
   
   while (digitalRead(TESTHBX) == 0) {
-    Serial.println("Test HBX commands to ETX");
+    dbgSerial.println("Test HBX commands to ETX");
     HBXTest();
     TimerDelaymS(5000);
   }
   
-  Serial.println("HBX Initialization");
+  dbgSerial.println("HBX Initialization");
   AzInitialise();
   AltInitialise();
   
@@ -95,36 +149,43 @@ void setup()
 
 // Reset the motors (RA and DEC)
 //  and wait until both respond to a command 
-  Serial.println("Wait for both motors to start up");
+  dbgSerial.println("Wait for both motors to start up");
   WaitForMotors();  
 
 // Get Motor Type from Az MC ( assume both same type of motor)
 
-  Serial.print("Get Motor Type: ");
+  dbgSerial.print("Get Motor Type: ");
   do {
     axis[AzMotor].MotorType = 0x00; 
     if (HBXSendCommand(GetMotorType, AzMotor))
       axis[AzMotor].MotorType = HBXGetByte(AzMotor);
   } while (!axis[AzMotor].MotorType);  
   axis[AltMotor].MotorType = axis[AzMotor].MotorType;
-  Serial.println(axis[AltMotor].MotorType);
+  dbgSerial.println(axis[AltMotor].MotorType);
 
+#ifndef mDue
   // Get the real LEDI values from EEPROM
   axis[AzMotor].HBXLEDI = EEPROM.read(EEPROMAzLEDI);
   axis[AltMotor].HBXLEDI = EEPROM.read(EEPROMAltLEDI);
+#endif
+#ifdef mDue
+  axis[AzMotor].HBXLEDI = 0x72;
+  axis[AltMotor].HBXLEDI = 0x72;
+#endif
+
   // Set LED values from EEPROM
-  Serial.print("Set Encoder LED currents - Az: ");
+  dbgSerial.print("Set Encoder LED currents - Az: ");
   if (HBXSendCommand(SetLEDI, AzMotor))
     HBXSendByte(axis[AzMotor].HBXLEDI, AzMotor); 
   if (HBXSendCommand(SetLEDI, AltMotor))
     HBXSendByte(axis[AltMotor].HBXLEDI, AltMotor);    
-  Serial.print(axis[AzMotor].HBXLEDI);
-  Serial.print(", Alt: ");
-  Serial.println(axis[AltMotor].HBXLEDI);
+  dbgSerial.print(axis[AzMotor].HBXLEDI);
+  dbgSerial.print(", Alt: ");
+  dbgSerial.println(axis[AltMotor].HBXLEDI);
 
 // Set the Offset Clear Command
 //  Send HBXP1, HBXP2 - which were initialised to 0    
-  Serial.println("Reset any ETX offset bytes");
+  dbgSerial.println("Reset any ETX offset bytes");
   if (HBXSendCommand(SetOffset, AzMotor))
     HBXSend2Bytes(AzMotor);
   TimerDelaymS(CMNDTIME);
@@ -133,7 +194,7 @@ void setup()
   TimerDelaymS(CMNDTIME);
 
   // Stop the motors (RA and DEC) 
-  Serial.println("Stop motors");
+  dbgSerial.println("Stop motors");
   do {
     P1 = 0;
     if (HBXSendCommand(Stop, AzMotor)) P1 += 1;
@@ -141,11 +202,11 @@ void setup()
   } while (P1 < 2);
   
 // Read status
-  Serial.println("Read Status");
+  dbgSerial.println("Read Status");
   HBXGet2Status();          // Check and read both motor states
 
   currentTime = now();
-  Serial.println("Setup Complete. Listening for commands ..");
+  dbgSerial.println("Setup Complete. Listening for commands ..");
 // Print debug info every 5 s
 // --------------------------
   Alarm.timerRepeat(10, debugEQG);    // Every 10 seconds
@@ -153,15 +214,20 @@ void setup()
 
 void loop()
 {
-
+  Serial.println("ETX V5.01");
+  Serial1.println("ETX-EQMOD");
+}
 /**************************************************************************************************
  *   Check ETXState
  **************************************************************************************************/
- 
-  if ((micros() - DelayTimer) > 6550) {
-    DelayTimer = micros();
-    HBXGet2Status();              // Polls motor position every 6.55mS
-  }
+void temp1(void) { 
+//  if ((micros() - DelayTimer) > (6550)) {
+//    DelayTimer = micros();
+//    HBXGet2Status();              // Polls motor position every 6.55mS
+    HBXGetStatus(AzMotor);
+    HBXGetStatus(AltMotor);
+    delay(ETXDELAY * 4);
+//  }
   
   ETXState(AzMotor);            // Check the Az motor state
   ETXState(AltMotor);           // Check the Alt motor state
@@ -181,7 +247,7 @@ void loop()
 	  }
 	}
 	while (EQGTxoPtr != EQGTxiPtr) {		        // EQG send any response
-    Serial1.write(EQGTxBuffer[EQGTxoPtr++]);  // Output to EQG
+    EQGSerial.write(EQGTxBuffer[EQGTxoPtr++]);  // Output to EQG
 		EQGTxoPtr &= EQGMASK;
 	}
   Alarm.delay(0);
@@ -215,7 +281,7 @@ void TimerDelayuS(unsigned int d) {
 /**********************************************
   EEPROM support
 ***********************************************/
-
+#ifndef mDue
 unsigned long eeprom_crc(void) {
 
   const unsigned long crc_table[16] = {
@@ -227,9 +293,9 @@ unsigned long eeprom_crc(void) {
 
   unsigned long crc = ~0L;
 
-  for (int index = 0 ; index < (EEPROM.length()-4)  ; ++index) {
-    crc = crc_table[(crc ^ EEPROM[index]) & 0x0f] ^ (crc >> 4);
-    crc = crc_table[(crc ^ (EEPROM[index] >> 4)) & 0x0f] ^ (crc >> 4);
+  for (int index = 0 ; index < (EEPROMLENGTH - 4)  ; ++index) {
+    crc = crc_table[(crc ^ EEPROM.read(index)) & 0x0f] ^ (crc >> 4);
+    crc = crc_table[(crc ^ (EEPROM.read(index) >> 4)) & 0x0f] ^ (crc >> 4);
     crc = ~crc;
   }
   return crc;
@@ -238,7 +304,7 @@ unsigned long eeprom_crc(void) {
 unsigned long get_eeprom_crc(void) {
   unsigned long crc;
   int i;
-  i = EEPROM.length()-4;      // Location of stored crc (last four bytes)
+  i = EEPROMLENGTH - 4;      // Location of stored crc (last four bytes)
   crc = 0;
   for (int j = 0; j < 4; j++) {
     crc = crc << 8;
@@ -252,12 +318,12 @@ bool set_eeprom_crc(void) {
   unsigned long crc;
   unsigned char data;
   int i;
-  i = EEPROM.length()-1;      // Location of stored crc (last four bytes)
+  i = EEPROMLENGTH - 1;      // Location of stored crc (last four bytes)
   crc = eeprom_crc();
   for (int j = 0; j < 4; j++) {
     data = crc & 0xFF;
     EEPROM.write(i, data);
-    if (EEPROM.read(i) != data) return (false);
+//    if (EEPROM.read(i) != data) return (false);
     i -= 1;
     crc = crc >> 8;
   }
@@ -268,5 +334,6 @@ bool check_eeprom_crc(void) {
   if (eeprom_crc() == get_eeprom_crc()) return true;
   else return false;
 }
+#endif
 
 

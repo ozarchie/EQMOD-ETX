@@ -3,6 +3,8 @@
 */
 
 
+#include <Arduino.h>
+
 /********************************************************
   Utility functions to monitor HBX comms
   ======================================
@@ -14,7 +16,7 @@ void HBXMonitorLoop(void){
     int Messages;
     PreviousTime = millis();
     
-    Serial.println("ETX-Monitor");
+    dbgSerial.println("ETX-Monitor");
 //  H2XReset();
     axis[AzMotor].PrintStatus0 = 1;           // Enable print of status = no change
     axis[AltMotor].PrintStatus0 = 1;          // Enable print of status = no change
@@ -117,7 +119,7 @@ void HBXMonitorEnd(unsigned char Motor) {
 }
 
 bool HBXMonitorBit(unsigned char Motor) {
-//  Serial.write('!');
+//  dbgSerial.write('!');
   axis[Motor].HBXData = 0;
   if (Motor == MotorAz) while (!digitalRead(HCL1));   // Wait for clock high
   else while (!digitalRead(HCL2));
@@ -128,7 +130,7 @@ bool HBXMonitorBit(unsigned char Motor) {
 }
 
 bool HBXMonitorByte(unsigned char Motor) {
-//  Serial.write('>');
+//  dbgSerial.write('>');
   axis[Motor].HBXBitCount = 8;  
   axis[Motor].HBXData = 0;
   while (axis[Motor].HBXBitCount) {
@@ -144,7 +146,7 @@ bool HBXMonitorByte(unsigned char Motor) {
 }
 
 void HBXMonitorMessage(unsigned char Motor) {
-//  Serial.write('<'); 
+//  dbgSerial.write('<'); 
   if (HBXMonitorByte(Motor))
     axis[Motor].HBXCmnd = axis[Motor].HBXData; 
   
@@ -196,47 +198,47 @@ void HBXMonitorMessage(unsigned char Motor) {
 
 void HBXPrintState(unsigned char Motor) {
   if (axis[Motor].HBXCmnd != GetStatus) {    // Handle all other commands
-    Serial.print(Motor);
-    Serial.write(',');
-    Serial.print(axis[Motor].TimeDelta);
-    Serial.write(',');
-    Serial.print(axis[Motor].HBXCmnd, HEX);
+    dbgSerial.print(Motor);
+    dbgSerial.write(',');
+    dbgSerial.print(axis[Motor].TimeDelta);
+    dbgSerial.write(',');
+    dbgSerial.print(axis[Motor].HBXCmnd, HEX);
     if (axis[Motor].HBXCount) {
-      Serial.write(',');
-      Serial.print(axis[Motor].HBXP1);
+      dbgSerial.write(',');
+      dbgSerial.print(axis[Motor].HBXP1);
       axis[Motor].HBXCount -= 1;
     }
     if (axis[Motor].HBXCount) {
-      Serial.write(',');
-      Serial.print(axis[Motor].HBXP2);
+      dbgSerial.write(',');
+      dbgSerial.print(axis[Motor].HBXP2);
       axis[Motor].HBXCount -= 1;
     }
     if (axis[Motor].HBXCount) {
-      Serial.write(',');
-      Serial.print(axis[Motor].HBXP3);
+      dbgSerial.write(',');
+      dbgSerial.print(axis[Motor].HBXP3);
       axis[Motor].HBXCount -= 1;
     }
     if (axis[Motor].HBXCount) {
-      Serial.write(',');
-      Serial.print(axis[Motor].HBXP4, HEX);
+      dbgSerial.write(',');
+      dbgSerial.print(axis[Motor].HBXP4, HEX);
     }
   }
   
   // Handle report status - exclude all 0 - ie nothing happened
   else if (axis[Motor].HBXP1 | axis[Motor].HBXP2 | axis[Motor].HBXP3 | axis[Motor].HBXP4 | axis[Motor].PrintStatus0) {
-    Serial.print(Motor);
-    Serial.write(',');
-    Serial.print(axis[Motor].TimeDelta);
-    Serial.write(',');
-    Serial.print(axis[Motor].HBXCmnd);
-    Serial.write(',');
-    Serial.print((axis[Motor].HBXP1<<8) + axis[Motor].HBXP2);
-    Serial.write(',');
-    Serial.print(axis[Motor].HBXP3);
-    Serial.write(',');
-    Serial.print(axis[Motor].HBXP4, HEX);
+    dbgSerial.print(Motor);
+    dbgSerial.write(',');
+    dbgSerial.print(axis[Motor].TimeDelta);
+    dbgSerial.write(',');
+    dbgSerial.print(axis[Motor].HBXCmnd);
+    dbgSerial.write(',');
+    dbgSerial.print((axis[Motor].HBXP1<<8) + axis[Motor].HBXP2);
+    dbgSerial.write(',');
+    dbgSerial.print(axis[Motor].HBXP3);
+    dbgSerial.write(',');
+    dbgSerial.print(axis[Motor].HBXP4, HEX);
   }
-  Serial.println("");
+  dbgSerial.println("");
 }
 
 

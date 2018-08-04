@@ -2,6 +2,9 @@
  * Copyright 2017, 2018 John Archbold
 */
 
+
+#include <Arduino.h>
+
 /********************************************************
   EQG Protocol related functions
   ==============================
@@ -345,18 +348,18 @@ void EQGAction(void) {
           else
             axis[EQGMOTOR].HBXTarget = axis[EQGMOTOR].HBXPosn - axis[EQGMOTOR].HBXDelta;  // subtract the relative target
 
-Serial.println("");
-Serial.print("HBX:<");
-Serial.print(EQGMOTOR);
-Serial.print("-");
-Serial.print(axis[EQGMOTOR].HBXMotorStatus, HEX);
-Serial.print("> ");
-Serial.print(", Pos: ");
-Serial.print(axis[EQGMOTOR].HBXPosn, HEX);
-Serial.print(", Del: ");
-Serial.print(axis[EQGMOTOR].HBXDelta, HEX);
-Serial.print("->Tgt: ");
-Serial.print(axis[EQGMOTOR].HBXTarget, HEX);
+dbgSerial.println("");
+dbgSerial.print("HBX:<");
+dbgSerial.print(EQGMOTOR);
+dbgSerial.print("-");
+dbgSerial.print(axis[EQGMOTOR].HBXMotorStatus, HEX);
+dbgSerial.print("> ");
+dbgSerial.print(", Pos: ");
+dbgSerial.print(axis[EQGMOTOR].HBXPosn, HEX);
+dbgSerial.print(", Del: ");
+dbgSerial.print(axis[EQGMOTOR].HBXDelta, HEX);
+dbgSerial.print("->Tgt: ");
+dbgSerial.print(axis[EQGMOTOR].HBXTarget, HEX);
 
           axis[EQGMOTOR].HBXMotorControl |= MoveHBX;            // Signal pending move
 				  break;
@@ -408,18 +411,18 @@ Serial.print(axis[EQGMOTOR].HBXTarget, HEX);
           else
             axis[EQGMOTOR].HBXSlowDown = axis[EQGMOTOR].HBXTarget - axis[EQGMOTOR].HBXSlowDown;  // subtract the relative target
 
-Serial.println("");
-Serial.print("HBX:<");
-Serial.print(EQGMOTOR);
-Serial.print("-");
-Serial.print(axis[EQGMOTOR].HBXMotorStatus, HEX);
-Serial.print("> ");
-Serial.print(", Pos: ");
-Serial.print(axis[EQGMOTOR].HBXPosn, HEX);
-Serial.print(", Del: ");
-Serial.print(EQGP1, HEX);
-Serial.print("-> SD: ");
-Serial.println(axis[EQGMOTOR].HBXSlowDown, HEX);
+dbgSerial.println("");
+dbgSerial.print("HBX:<");
+dbgSerial.print(EQGMOTOR);
+dbgSerial.print("-");
+dbgSerial.print(axis[EQGMOTOR].HBXMotorStatus, HEX);
+dbgSerial.print("> ");
+dbgSerial.print(", Pos: ");
+dbgSerial.print(axis[EQGMOTOR].HBXPosn, HEX);
+dbgSerial.print(", Del: ");
+dbgSerial.print(EQGP1, HEX);
+dbgSerial.print("-> SD: ");
+dbgSerial.println(axis[EQGMOTOR].HBXSlowDown, HEX);
 
 				  break;
 
@@ -439,8 +442,8 @@ Serial.println(axis[EQGMOTOR].HBXSlowDown, HEX);
   Handle EQG communications
 ***********************************************/
 void EQGRx(void) {
-  while (Serial1.available() > 0) {
-    EQGRxBuffer[EQGRxiPtr++] = Serial1.read();
+  while (EQGSerial.available() > 0) {
+    EQGRxBuffer[EQGRxiPtr++] = EQGSerial.read();
     EQGRxiPtr &= EQGMASK;
   }
 }
@@ -476,7 +479,7 @@ void EQGTxHex6(unsigned long data) {
   Debug routines
 ***********************************************/
 void putbyte(unsigned char data) {
-  Serial.write(data);
+  dbgSerial.write(data);
 }
 
 void puthexb(unsigned char data) {
@@ -487,7 +490,7 @@ void puthexb(unsigned char data) {
 }
 
 void putdecb(unsigned char data) {
-  Serial.print(data);
+  dbgSerial.print(data);
 }
 
 void puthexw(unsigned int data) {
@@ -496,7 +499,7 @@ void puthexw(unsigned int data) {
 }
 
 void putdecw(unsigned int data) {
-  Serial.print(data);
+  dbgSerial.print(data);
 }
 
 void puthex6(unsigned long data) {
@@ -510,11 +513,11 @@ void puthexl(unsigned long data) {
 }
 
 void putdecl(unsigned long data) {
-  Serial.print(data);
+  dbgSerial.print(data);
 }
 
 void EQGSend(unsigned char data) {
-  Serial.write(data);
+  dbgSerial.write(data);
 }
 
 void EQGSendHex(unsigned char data) {
@@ -534,22 +537,22 @@ void EQGSendHex6(unsigned long data) {
 }
 
 void debugEQG() {
-  Serial.println("");
-  Serial.print("Az:<");
-  Serial.print(axis[AzMotor].HBXMotorStatus, HEX);
-  Serial.print(">Pos: ");
-  Serial.print(axis[AzMotor].HBXPosn, HEX);
-  Serial.print(" SD: ");
-  Serial.print(axis[AzMotor].HBXSlowDown, HEX);
-  Serial.print(" Tgt: ");
-  Serial.print(axis[AzMotor].HBXTarget, HEX);
+  dbgSerial.println("");
+  dbgSerial.print("Az:<");
+  dbgSerial.print(axis[AzMotor].HBXMotorStatus, HEX);
+  dbgSerial.print(">Pos: ");
+  dbgSerial.print(axis[AzMotor].HBXPosn, HEX);
+  dbgSerial.print(" SD: ");
+  dbgSerial.print(axis[AzMotor].HBXSlowDown, HEX);
+  dbgSerial.print(" Tgt: ");
+  dbgSerial.print(axis[AzMotor].HBXTarget, HEX);
   
-  Serial.print(", Alt:<");
-  Serial.print(axis[AzMotor].HBXMotorStatus, HEX);
-  Serial.print(">Pos: ");
-  Serial.print(axis[AltMotor].HBXPosn, HEX);
-  Serial.print(" SD: ");
-  Serial.print(axis[AltMotor].HBXSlowDown, HEX);
-  Serial.print(" Tgt: ");
-  Serial.print(axis[AltMotor].HBXTarget, HEX);
+  dbgSerial.print(", Alt:<");
+  dbgSerial.print(axis[AzMotor].HBXMotorStatus, HEX);
+  dbgSerial.print(">Pos: ");
+  dbgSerial.print(axis[AltMotor].HBXPosn, HEX);
+  dbgSerial.print(" SD: ");
+  dbgSerial.print(axis[AltMotor].HBXSlowDown, HEX);
+  dbgSerial.print(" Tgt: ");
+  dbgSerial.print(axis[AltMotor].HBXTarget, HEX);
 }

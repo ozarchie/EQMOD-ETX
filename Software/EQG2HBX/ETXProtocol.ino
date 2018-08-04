@@ -3,6 +3,8 @@
 */
 
 
+#include <Arduino.h>
+
 /********************************************************
   ETX Protocol related functions
   ==============================
@@ -26,9 +28,9 @@ bool ETXState(unsigned char Motor) {
           axis[Motor].ETXMotorState = ETXSlewMotor;       // Yes, go
           else {
             axis[EQGMOTOR].HBXMotorStatus |= MOVESTEP;    // No, change to step
-            if (axis[EQGMOTOR].HBXDelta < 0x100) {        // Scale speed down for really small slews
-              axis[Motor].HBXTargetSpeed = axis[Motor].HBXTargetSpeed >> 2;
-            }
+//            if (axis[EQGMOTOR].HBXDelta < 0x100) {        // Scale speed down for really small slews
+//              axis[Motor].HBXTargetSpeed = axis[Motor].HBXTargetSpeed >> 2;
+//            }
             axis[Motor].HBXSpeed = 0;          
             axis[Motor].ETXMotorState = ETXStepMotor;
           }
@@ -56,16 +58,16 @@ bool ETXState(unsigned char Motor) {
       if (axis[Motor].HBXMotorStatus & MOVELOW)            // Stepping, High or Low speed
         axis[Motor].HBXCmnd = RotateSlow;
       else axis[Motor].HBXCmnd = RotateFast;
-      if (axis[Motor].HBXSpeed == 0) {                    // Starting up
-        axis[Motor].HBXSpeed = axis[Motor].HBXTargetSpeed >> 2;
-      }
+//     if (axis[Motor].HBXSpeed == 0) {                    // Starting up
+        axis[Motor].HBXSpeed = axis[Motor].HBXTargetSpeed; //;
+//      }
 
       // Set the speed, and direction
       // ----------------------------
       P1 = axis[Motor].HBXSpeed;
-      if ((axis[Motor].HBXMotorStatus & MOVEDIRN) == REVERSE)  // If negative, change P
-        P1 = TwosComplement(P1);                          //  to 2's complement
-      axis[Motor].HBXP1 = (P1 >> 16) & 0xFF;              // Initialize command bytes
+      if ((axis[Motor].HBXMotorStatus & MOVEDIRN) == REVERSE)   // If negative, change P
+        P1 = TwosComplement(P1);                                //  to 2's complement
+      axis[Motor].HBXP1 = (P1 >> 16) & 0xFF;                    // Initialize command bytes
       axis[Motor].HBXP2 = (P1 >>  8) & 0xFF;
       axis[Motor].HBXP3 = P1 & 0xFF;
     

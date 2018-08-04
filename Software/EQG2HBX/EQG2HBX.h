@@ -2,6 +2,7 @@
  * Copyright 2017, 2018 John Archbold
 */
 
+#include <Arduino.h>
 /********************************************************
   EQG2HBX program definitions
   ===========================
@@ -20,15 +21,39 @@
 
 // Pin definitions for LED indicators
 // ==================================
+#ifdef m2560
 #define AzLED           7           // Mega2560 D7
 #define AltLED          6           // Mega2560 D6
 #define FROMEQG         5           // Mega2560 D5
 #define FROMHBX         4           // Mega2560 D4
+#endif
+#ifdef mDue
+#define AzLED           7           // Mega2560 D7
+#define AltLED          6           // Mega2560 D6
+#define FROMEQG         5           // Mega2560 D5
+#define FROMHBX         4           // Mega2560 D4
+#endif
+#ifdef  mESP32
+#define AzLED           33
+#define AltLED          25
+#define FROMEQG         26
+#define FROMHBX         27
+#endif
 
 // Jumpers to run monitor or test
 // ==============================
-#define TESTHBX         9           // Mega2560 D2
+#ifdef m2560
 #define MONITORHBX      11          // Mega2560 D3
+#define TESTHBX         9           // Mega2560 D2
+#endif
+#ifdef mDue
+#define MONITORHBX      11          // Mega2560 D3
+#define TESTHBX         9           // Mega2560 D2
+#endif
+#ifdef  ESP32
+#define MONITORHBX      35
+#define TESTHBX         32
+#endif
 
 /************************************************************** 
  *  Common variables
