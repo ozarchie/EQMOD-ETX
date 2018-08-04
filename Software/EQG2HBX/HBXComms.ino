@@ -1,8 +1,6 @@
 /*
  * Copyright 2017, 2018 John Archbold
 */
-
-
 #include <Arduino.h>
 
 /********************************************************
@@ -18,7 +16,7 @@
 bool HBXSendCommand(unsigned char Command, unsigned char Motor) {
 
 	unsigned long i;
-  axis[Motor].HBXCmnd = Command;
+  axis[Motor].Command = Command;
   
 // Send the start sequence
 // -----------------------
@@ -242,4 +240,5 @@ long TwosComplement(long p) {					// Calculate 2s complement
 	q = q + 1;									// +1
 	return q;
 }
+
 

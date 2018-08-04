@@ -27,12 +27,6 @@
 #define FROMEQG         5           // Mega2560 D5
 #define FROMHBX         4           // Mega2560 D4
 #endif
-#ifdef mDue
-#define AzLED           7           // Mega2560 D7
-#define AltLED          6           // Mega2560 D6
-#define FROMEQG         5           // Mega2560 D5
-#define FROMHBX         4           // Mega2560 D4
-#endif
 #ifdef  mESP32
 #define AzLED           33
 #define AltLED          25
@@ -46,10 +40,6 @@
 #define MONITORHBX      11          // Mega2560 D3
 #define TESTHBX         9           // Mega2560 D2
 #endif
-#ifdef mDue
-#define MONITORHBX      11          // Mega2560 D3
-#define TESTHBX         9           // Mega2560 D2
-#endif
 #ifdef  ESP32
 #define MONITORHBX      35
 #define TESTHBX         32
@@ -58,10 +48,10 @@
 /************************************************************** 
  *  Common variables
  **************************************************************/
-
-unsigned long DelayTimer = 0;         // Delay timer
-unsigned long StatusTimer = 0;        // H2X delay timer
-unsigned long StatusTime = 0;         // H2X interval time
+unsigned int  eepromlength = 256;
+unsigned long DelayTimer;         // Delay timer
+unsigned long StatusTimer;        // H2X delay timer
+unsigned long StatusTime;         // H2X interval time
 
 long          P1;
 long          P2;
@@ -90,8 +80,7 @@ unsigned char EQGRxoPtr = 0;				  // Pointer for output from EQG Rx buffer
 unsigned char EQGTxiPtr = 0;				  // Pointer for input to EQG buffer
 unsigned char EQGTxoPtr = 0;				  // Pointer for output to EQG
 
-unsigned char EQGDbgBuffer[EQGLEN];    // Debug
-unsigned char EQGDbgPtr = 0;          // Pointer for debug
+
 
 unsigned char EQGCmnd = 0;				    // EQG	Command
 unsigned char EQGErrorValue;          // EQG  Returned error value
@@ -103,8 +92,17 @@ unsigned char EQGDECAutoguide = 0;		// EQG	Autoguide rate
 unsigned char EQGRxState = 1;				  // EQG	State 
 unsigned char EQGRxChar;					    // EQG	Rx Character
 unsigned char EQGRxCount;             // EQG  # parameters
-unsigned char EQGDbgCount;            // EQG  # parameters
 
+#define dbgLEN  256                   // Communications buffers
+#define dbgMASK dbgLEN-1              // Index wraps to 0
+unsigned char dbgRxBuffer[dbgLEN];    // Hold data from EQG
+         char dbgCommand[dbgLEN];     // Hold data from EQG
+unsigned char dbgRxiPtr = 0;          // Pointer for input from EQG
+unsigned char dbgRxoPtr = 0;          // Pointer for output from EQG Rx buffer
+unsigned char dbgFlag = 0;            // Received a command
+unsigned char dbgIndex = 0;           // Index into command
+        float f;
+unsigned long v;
 /************************************************************** 
  *	HBX communications buffers and pointers
  *	HBX variables
@@ -112,18 +110,19 @@ unsigned char EQGDbgCount;            // EQG  # parameters
 
 unsigned long H2XStart = 0;        // Used to count uS ticks
 unsigned long H2XTimer = 0;        // Used to count uS ticks
-unsigned char MotorStatus;        // Current State of motor
+unsigned char EQGMotorStatus;        // Current State of motor
   
 typedef struct {
   unsigned char MotorType;          // Current type of motor
   unsigned char MotorFlag;          // Flag to print motor positions
 
   unsigned long ETXMotorState;      // ETX Motor State Nachine
-  unsigned long HBXMotorStatus;     // Current HBX Motor State
-  unsigned long HBXMotorControl;    // Current HBX Motor Control bits
+  unsigned long ETXMotorStatus;     // Current ETX Motor Status
+  unsigned long EQGMotorStatus;     // Current EQG Motor Status
+  unsigned long MotorControl;       // Current HBX Motor Control bits
 
   unsigned char HBXBitCount;        // #bits left to process
-  unsigned char HBXCmnd;            // Current command
+  unsigned char Command;            // Current command
   unsigned char HBXData;					  // Data byte from HBX Bus
   unsigned char HBXP1;						  // HBX status/data - MSB
   unsigned char HBXP2;						  // HBX status/data
@@ -131,36 +130,81 @@ typedef struct {
   unsigned char HBXP4;              // HBX status/data - encoder error
   unsigned char HBXCount;           // HBX valid data count
   unsigned char HBXLEDI;            // LED current value from Motor  
-  unsigned long HBXDirSpeed;        // Speed, Direction for Motor to move
+  unsigned long DirnSpeed;          // Speed, Direction for Motor to move
            char HBXGuide;           // Guide speed
-           long HBXSpeed;           // Move speed
-           long HBXTargetSpeed;     // Target Move speed
-           char HBXSpeedState;      // Slowdown/speedup state
-           long HBXPosn;            // Current position
-           long HBXTarget;          // Current target delta
-           long HBXDelta;           // Change in position for motor speed calcs  
-           long HBXSlowDown;        // Point to change to lower speed
-           long HBXOffset;          // Current adjustment
-           long HBX_bVALUE;         // For rate calculations
+           char HBXSnapPort;        // Snap port
+           char ETXSpeedCommand;    // Current ETX Speed command
+           long Speed;              // Move speed
+           long TargetSpeed;        // Target Move speed
+           char SpeedState;         // Slowdown/speedup state
+           long Position;           // Current position
+           long Target;             // Current target delta
+           long Increment;          // Change in position for motor speed calcs  
+           long SlowDown;           // Point to change to lower speed
+           long Offset;             // Current adjustment
+           
+// MeadeRatio = ((Vanes * 4) * GbxRatio * XferRatio * WormTeeth) / 1,296,000 
+          float MeadeRatio;         // Meade Ratio
+          float GbxRatio;           // GearBox Ratio
+  unsigned long Vanes;              // Number of photocoupler vanes
+          float XferRatio;          // Gearbox Transfer Ratio (usually 1)
+  unsigned long WormTeeth;          // Number of Worm teeth
+
+// a-Value = (Vanes * 4) * GbxRatio * XferRatio * WormTeeth 
+// b-Value = (6460.09 * MeadeRatio * a-Value * 15.041069) / 1,296,000            
+  unsigned long aVALUE;         // For rate calculations
+  unsigned long bVALUE;         // For rate calculations
+
+// SIDEREALRATE = 6460.09 * MeadeRatio
+// SOLARRATE = (SOLARSECS/SIDEREALSECS) * SIDEREALRATE
+// LUNARRATE = (SOLARSECS/SIDEREALSECS) * SIDEREALRATE
+// DEGREERATE1 = 240 * SIDEREALRATE
   unsigned long SIDEREALRATE;       // Constants
   unsigned long SOLARRATE;
   unsigned long LUNARRATE;
   unsigned long DEGREERATE1;
-  unsigned long DEGREERATE2;
-  unsigned long SIDEREALSPEED;
-  unsigned long SOLARSPEED;
-  unsigned long LUNARSPEED;
-  unsigned long DEGREESPEED1;
-  unsigned long DEGREESPEED2; 
-  unsigned long STEPSPER360; 
-  unsigned long WORM; 
-  unsigned long PEC;
+
+// PEC = a-VALUE / WormTeeth;
+  unsigned long PEC;                // PEC period (period of worm tooth)
+  
   unsigned char PrintStatus0;       // Force print of no status change
   unsigned long TimeDelta;          // Used in HBX Monitor
 } axis_type;
 
 axis_type axis[4];                  // Az, Alt
 
+// Support other scopes with Meade interface
+typedef struct {
+  unsigned long Vanes;              // Number of photocoupler vanes
+  float         GbxRatio;           // GearBox Ratio
+  float         XferRatio;          // Gearbox Transfer Ratio (usually 1)
+  unsigned long WormTeeth;          // Number of Worm teeth
+} axis_values;
+
+unsigned char telescope = 0;        // Default telescope (ETX60)
+
+axis_values ratio[16][2] =                             // 16 scopes, Az, Alt
+  {
+    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
+    {{256, 50, 1, 350}, {256, 50, 1, 350}},                 // LX200
+    {{500, 36, 1, 225}, {500, 36, 1, 225}},                 // LX850
+    {{256, 50, 1, 180}, {256, 50, 1, 180}},                 // LX200/400/500
+
+    {{108, 53.5859375, 1, 154}, {108, 53.5859375, 1, 154}}, // LX90, LT, LX80AltAz
+    {{108, 50, 1, 144}, {108, 50, 1, 144}},                 // LXD55/75, LX70-GTS
+    {{36, 205.3330000, 1, 60}, {36, 205.3330000, 1, 60}},   // ETX-xxx, DS-xxx
+    {{36, 91.1458333, 1, 83}, {36, 144.7362076, 1, 66}},    // ??
+
+    {{36, 205.3330000, 1, 144}, {36, 205.3330000, 1, 144}}, // DS external
+    {{36, 410.6660000, 1, 100}, {36, 157.5, 1, 58}},        // DH external/114EQs/4504s  
+    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
+    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
+
+    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
+    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
+    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
+    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}}           // ETX60/70/80
+  };
 
 unsigned long PreviousTime;              // Used in HBX Monitor, Testing
 
@@ -172,4 +216,5 @@ unsigned long TestLoopTime;
 unsigned char DetectedClock;
 
 #endif
+
 

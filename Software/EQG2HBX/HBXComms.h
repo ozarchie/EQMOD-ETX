@@ -1,8 +1,6 @@
 /*
  * Copyright 2017, 2018 John Archbold
 */
-
-
 #include <Arduino.h>
 
 /********************************************************
@@ -21,17 +19,10 @@
 #define HCL2            3           // Pin5 on HBX interface
 #endif
 
-#ifdef mDue
-#define HDA1            8           // Pin2, 4, 6 on HBX interface
-#define HCL1            2           // Pin3 on HBX interface
-#define HDA2            10          // Not used
-#define HCL2            3           // Pin5 on HBX interface
-#endif
-
 #ifdef  mESP32
-#define HDA1            25
-#define HCL1            26
-#define HCL2            27
+#define HDA1            25          // Pin2, 4, 6 on HBX interface
+#define HCL1            26          // Pin3 on HBX interface
+#define HCL2            27          // Pin5 on HBX interface
 #endif
 
 #define CR              0x0d
@@ -94,3 +85,4 @@ void HBXTest(void);
 bool HBXGet2Status(void);
 
 #endif
+

@@ -1,8 +1,6 @@
 /*
  * Copyright 2017, 2018 John Archbold
 */
-
-
 #include <Arduino.h>
 
 /********************************************************
@@ -19,13 +17,13 @@
 #define AltMotor        MotorAlt
 
 // ETX Bit Definitions
-// Variable - axis[Motor].HBXMotorControl
+// Variable - axis[Motor].MotorControl
 // nibble 4
 #define StartHBX        0x8000      // Motor start bit
 #define StopHBX         0x4000      // Motor stop bit
-#define MoveHBX         0x2000      // Move pending
+#define SlewHBX         0x2000      // Move in progress
 #define SpeedHBX        0x1000      // Speed change pending
-#define GoToHBX         0x0800      // GoTo in Progress
+#define GoToHBX         0x0800      // GoTo in process
 
 // ETX Known Commands
 #define	RotateSlow	    0x00					// Output "8.16" 	  speed
@@ -42,6 +40,7 @@
 #define	ResetH2X		    0xE4					// None
 
 // ETX State Machine
+#define ETXIdle           0
 #define ETXCheckStartup   1
 #define ETXSlewMotor      2
 #define ETXStepMotor      3
@@ -52,43 +51,19 @@
 #define ETXStopMotor      8
 #define ETXMotorEnd       9
 
-#define EEPROMAzLEDI    0x01          // EEPROM Storage
+#define EEPROMAzLEDI    0x01            // EEPROM Storage
 #define EEPROMAltLEDI   0x02
-#define EEPROMMotor     0x03          // MOTOR TYPE
+#define EEPROMMotor     0x03            // MOTOR TYPE
 
-#define ETX60PERIOD     152.587891    // (1/6.55mS)
+float   ETX60PERIOD     = 152.587891;   // (1/6.5536mS)
 
-#define ETX_CENTRE      0x00800000
-#define AzSTEPSPER360   1233750     // See etx60at-gears.ods 
-#define AltSTEPSPER360  1315440 
-#define AzWORM          94
-#define AltWORM         58
-#define AzPEC           AzSTEPSPER360/AzWORM
-#define AltPEC          AltSTEPSPER360/AltWORM
+#define ETX_AzCENTRE      0x00800000    // HA
+#define ETX_AltCENTRE     0x00800000    // DEC
 
-#define AzSIDEREALRATE  0x001805      // (AzSTEPSPER360/SIDEREALSECS)/ETX60PERIOD
-#define AzSOLARRATE     0x0017F5      // (AzSTEPSPER360/SOLARSECS)/ETX60PERIOD
-#define AzLUNARRATE     0x00172D      // (AzSTEPSPER360/LUNARSECS)/ETX60PERIOD
-#define AzDEGREERATE1   0x1675B1      // (AltSTEPSPER360/360)/ETX60PERIOD
-#define AzDEGREERATE2   AzDEGREERATE1 << 1
+float   MeadeSidereal   = 6460.0900;    // Refer Andrew Johansen
+float   SiderealArcSecs = 15.041069;    // Sidereal arcsecs/sec
+float   ArcSecs360      = 1296000;      // Arcsecs /360
 
-#define AltSIDEREALRATE 0x00199C      // (AltSTEPSPER360/SIDEREALSECS)/ETX60PERIOD
-#define AltSOLARRATE    0x00198B      // (AzSTEPSPER360/SOLARSECS)/ETX60PERIOD
-#define AltLUNARRATE    0x0018B6      // (AzSTEPSPER360/LUNARSECS)/ETX60PERIOD
-#define AltDEGREERATE1  0x17F265      // (AzSTEPSPER360/360)/ETX60PERIOD
-#define AltDEGREERATE2  AltDEGREERATE1 << 1
-
-#define AzSIDEREALSPEED  0.09383854     // (AzSTEPSPER360/SIDEREALSECS)/ETX60PERIOD
-#define AzSOLARSPEED     0.09358222     // (AzSTEPSPER360/SOLARSECS)/ETX60PERIOD
-#define AzLUNARSPEED     0.09053403     // (AzSTEPSPER360/LUNARSECS)/ETX60PERIOD
-#define AzDEGREESPEED1   22.4597        // (AzSTEPSPER360/360)/ETX60PERIOD
-#define AzDEGREESPEED2   AzDEGREESPEED1 * 2.0
-
-#define AltSIDEREALSPEED 0.10005185     // (AltSTEPSPER360/SIDEREALSECS)/ETX60PERIOD
-#define AltSOLARSPEED    0.09977856     // (AzSTEPSPER360/SOLARSECS)/ETX60PERIOD
-#define AltLUNARSPEED    0.09652854     // (AzSTEPSPER360/LUNARSECS)/ETX60PERIOD
-#define AltDEGREESPEED1  23.9469        // (AltSTEPSPER360/360)/ETX60PERIOD
-#define AltDEGREESPEED2  AltDEGREESPEED1 * 2.0
 
 #define ETXSlew1        1               // 1  x sidereal (0.25 arc-min/sec or 0.0042°/sec) 
 #define ETXSlew2        2               // 2  x sidereal (0.50 arc-min/sec or 0.0084°/sec)
@@ -97,7 +72,7 @@
 #define ETXSlew5        64              // 64 x sidereal (  16 arc-min/sec or 0.2674°/sec)
 #define ETXSlew6        120             // 30  arc-min/sec or 0.5°/sec
 #define ETXSlew7        240             // 60  arc-min/sec or 1.0°/sec
-#define ETXSlew8        360             // 90  arc-min/sec or 1.5°/sec
+#define ETXSlew8        600             // 150 arc-min/sec or 2.5°/sec
 #define ETXSlew9       1080             // 270 arc-min/sec or 4.5°/sec
 
 #define ETXSLOWPOSN     0x00000800      // Point at which to start slowdown
@@ -113,6 +88,7 @@ bool HBXUpdatePosn(void);
 bool HBXStartMotor(unsigned char);
 bool HBXStopMotor(unsigned char);
 bool HBXGetStatus(unsigned char);
-void HBXPosnPoll(unsigned char);
+void PositionPoll(unsigned char);
 
 #endif
+

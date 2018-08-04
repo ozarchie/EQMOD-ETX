@@ -8,7 +8,22 @@
 /********************************************************
   Utility functions to monitor HBX comms
   ======================================
+  The monitor is enabled by reading the state of the MONITORHBX pin.
+  The pin definition is set in EQG2HBX and changes depending on the interface board:
+  #ifdef m2560
+  #define MONITORHBX      11          // Mega2560 D3
+  #define TESTHBX         9           // Mega2560 D2
+  #endif
+  #ifdef  ESP32
+  #define MONITORHBX      35
+  #define TESTHBX         32
+  #endif
 
+  This mode overrides the EQG2HBX protocol conversion.
+  It uses the board inetrface to monitor the HBX 'serial' commands and prints the details:
+    Start
+    Message
+    End
   ToDo:
   Change to H2XISR for interrupt driven receive
  *********************************************************/
@@ -18,8 +33,8 @@ void HBXMonitorLoop(void){
     
     dbgSerial.println("ETX-Monitor");
 //  H2XReset();
-    axis[AzMotor].PrintStatus0 = 1;           // Enable print of status = no change
-    axis[AltMotor].PrintStatus0 = 1;          // Enable print of status = no change
+    axis[AzMotor].PrintStatus0 = 1;           // Enable printing "status polls" with no change
+    axis[AltMotor].PrintStatus0 = 1;          // Enable printing "status polls" with no change
     HBXMonitorMode();
 
   do {
@@ -32,8 +47,8 @@ void HBXMonitorLoop(void){
       }
     }
     if (HBXMonitorHCL(CLOCKTIMEOUT)) {                  // Better read Alt
-      if (DetectedClock) {
-        HBXMonitorMessage(DetectedClock);               // Alt may follow immediately
+      if (DetectedClock) {                              // as 
+        HBXMonitorMessage(DetectedClock);               //  Alt msg may follow immediately
         axis[DetectedClock].TimeDelta = millis();       // - PreviousTime;
         Messages += 1;
       }
@@ -148,9 +163,9 @@ bool HBXMonitorByte(unsigned char Motor) {
 void HBXMonitorMessage(unsigned char Motor) {
 //  dbgSerial.write('<'); 
   if (HBXMonitorByte(Motor))
-    axis[Motor].HBXCmnd = axis[Motor].HBXData; 
+    axis[Motor].Command = axis[Motor].HBXData; 
   
-  switch (axis[Motor].HBXCmnd) {
+  switch (axis[Motor].Command) {
 
     case GetStatus:                    // Four bytes of data
       axis[Motor].HBXCount = 4;
@@ -197,12 +212,12 @@ void HBXMonitorMessage(unsigned char Motor) {
 }
 
 void HBXPrintState(unsigned char Motor) {
-  if (axis[Motor].HBXCmnd != GetStatus) {    // Handle all other commands
+  if (axis[Motor].Command != GetStatus) {    // Handle all other commands
     dbgSerial.print(Motor);
     dbgSerial.write(',');
     dbgSerial.print(axis[Motor].TimeDelta);
     dbgSerial.write(',');
-    dbgSerial.print(axis[Motor].HBXCmnd, HEX);
+    dbgSerial.print(axis[Motor].Command, HEX);
     if (axis[Motor].HBXCount) {
       dbgSerial.write(',');
       dbgSerial.print(axis[Motor].HBXP1);
@@ -230,7 +245,7 @@ void HBXPrintState(unsigned char Motor) {
     dbgSerial.write(',');
     dbgSerial.print(axis[Motor].TimeDelta);
     dbgSerial.write(',');
-    dbgSerial.print(axis[Motor].HBXCmnd);
+    dbgSerial.print(axis[Motor].Command);
     dbgSerial.write(',');
     dbgSerial.print((axis[Motor].HBXP1<<8) + axis[Motor].HBXP2);
     dbgSerial.write(',');
@@ -240,5 +255,6 @@ void HBXPrintState(unsigned char Motor) {
   }
   dbgSerial.println("");
 }
+
 
 
