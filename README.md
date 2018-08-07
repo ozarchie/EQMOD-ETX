@@ -10,7 +10,7 @@ Information in this document was collected from multiple sources on the Weasner 
 The main information comes from -:
 1. http://www.weasner.com/etx/menu.html.  
 2. US patent #6,304,376 is held by Meade.  
-3. Some information is derived from observations of the interactions between the Autostar controller and the DH series motors. The information in this document was not derived via disassembly of the Autostar or motor processor firmware.  
+3. Some information is assumed from observations of the interactions between the Autostar controller and the DH series motors. The information in this document was not derived via disassembly of the Autostar or motor processor firmware.  
 
 **The user must take care not to violate the claims of the aforementioned patent in any application of this information.**  
 
