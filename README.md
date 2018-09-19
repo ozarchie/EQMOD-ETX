@@ -1,4 +1,4 @@
-# EQMOD-ETX
+# EQMOD-ETX-ESP32
 ## Introduction
 This project describes a possible arduino interface between the ASCOM-EQMOD software and the 'HBX' interface to the Az and Alt motors controller. The device investigated was the ETX60AT. It provides a protocol translater to enable the features of EQMOD to be applied to some ETX scopes using the low-level HBX motor control commands. It is for personal experimental use only.  
   
