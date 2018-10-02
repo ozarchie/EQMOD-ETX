@@ -4,17 +4,8 @@ This project describes a possible arduino interface between the ASCOM-EQMOD soft
   
 *The project is experimental and does not claim to be a specification of the protocol or its' interface, nor does it claim continuous error-free operation. As always, it is the responsibilty of the user to assess whether this information, program and hardware is useful and appropriate to them and to assess any likely impact on their systems and equipment, including the possibilty of any damage.*  
 
-    **TAKE SPECIAL CARE WITH THE JP5 AND JP1 CONNECTORS**  
-    **JP1 SUPPLIES 12V, WHILE JP5 USES 5V TO POWER THE RS232<->TTL CONVERTER**  
-
-
-    **YOU COULD SEVERELY DAMAGE THE MAIN PROCESSOR IF YOU GET THEM WRONG**  
-
-
-    **IF YOU ARE UNSURE, USE DIFFERENT TYPES OF CONNECTORS**
-
-![Breadboard](https://github.com/ozarchie/EQMOD-ETX/blob/master/Documentation/images/EQG2HBXESP32_bb.png)
-![Schematic](https://github.com/ozarchie/EQMOD-ETX/blob/master/Documentation/images/EQG2HBXESP32_schem.png)
+** The project is now published on EasyEDA **  
+![EQG2HBX Design](https://easyeda.com/jmarchbold/eqg2hbx)
 
 ## Notices
 Information in this document was collected from multiple sources on the Weasner site. It is a summary of those documents and retains the original warnings/copyrights where they existed.  
