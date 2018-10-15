@@ -16,9 +16,11 @@ Information in this document was collected from multiple sources on the Weasner 
 
 The main information comes from -:
 1. http://www.weasner.com/etx/menu.html    
-2. Some information assumed from observations of the interactions between the Autostar 494 controller and the DH series motors. The information in this document was not derived via disassembly of the Autostar or motor processor firmware    
+2. http://jp.themes.pagesperso-orange.fr/bac2010/dossier_technique/Dossier%20technique%20v1.0.pdf  
+3. Some information assumed from observations of the interactions between the Autostar 494 controller and the DH series motors. The information in this document was not derived via disassembly of the Autostar or motor processor firmware    
 
 See information about relevant intellectual property in the original documents   
 
 This work would not be possible without the prior and ongoing contributions of Dick Seymour, Gene Chimahusky, Andrew Johansen and others and is summarised, to the best of my ability, in the Documents section. Please refer to other contributors in the documents.
  
+  
