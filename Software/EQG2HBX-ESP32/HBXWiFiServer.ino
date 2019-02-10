@@ -97,45 +97,223 @@ void getTxDataFromMountOutputBuffer(void) {
 	}
 }
 
+// Webserver functions for ssid, pass, telescope etc
+// =================================================
+
+void onRequest(AsyncWebServerRequest *request){
+  //Handle Unknown Request
+	request->send(404, "text/plain", "The content you are looking for was not found.");
+}
+
+void onBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
+	if (!index) {
+		dbgSerial.printf("BodyStart: %u B\n", total);
+	}
+	for (size_t i = 0; i < len; i++) {
+		dbgSerial.write(data[i]);
+	}
+	if (index + len == total) {
+		dbgSerial.printf("BodyEnd: %u B\n", total);
+	}
+}
+
+void onUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+	if (!index) {
+		dbgSerial.printf("UploadStart: %s\n", filename.c_str());
+	}
+	for (size_t i = 0; i < len; i++) {
+		dbgSerial.write(data[i]);
+	}
+	if (final) {
+		dbgSerial.printf("UploadEnd: %s, %u B\n", filename.c_str(), index + len);
+	}
+}
+
+void AsyncServerResponseSetup(void) {
+
+ // respond to GET requests on URL /scan
+		//First request will return 0 results unless you start scan from somewhere else (loop/setup)
+		//Do not request more often than 3-5 seconds
+
+	server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request){
+		String json = "[";
+		int n = WiFi.scanComplete();
+		if(n == -2){
+			WiFi.scanNetworks(true);
+		} else if(n){
+			for (int i = 0; i < n; ++i) {
+				if(i) json += ",";
+				json += "{";
+				json += "\"rssi\":"+String(WiFi.RSSI(i));
+				json += ",\"ssid\":\""+WiFi.SSID(i)+"\"";
+				json += ",\"bssid\":\""+WiFi.BSSIDstr(i)+"\"";
+				json += ",\"channel\":"+String(WiFi.channel(i));
+				json += ",\"secure\":"+String(WiFi.encryptionType(i));
+//				json += ",\"hidden\":"+String(WiFi.isHidden(i)?"true":"false");
+				json += "}\r\n";
+			}
+			WiFi.scanDelete();
+			if(WiFi.scanComplete() == -2){
+				WiFi.scanNetworks(true);
+			}
+		}
+		json += "]";
+		request->send(200, "application/json", json);
+		json = String();
+	});
+
+  // upload a file to /upload
+  server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request){
+    request->send(200);
+  }, onUpload);
+
+  // send /index.htm file when /index is requested
+  server.on("/index", HTTP_ANY, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/www/index.htm");
+  });
+
+	// send /settings.htm file when /settings is requested
+	server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
+		request->send(SPIFFS, "/www/settings.htm");
+		int paramsNr = request->params();
+		dbgSerial.print("Number of settings parameters: "); dbgSerial.println(paramsNr);
+		if (paramsNr) {
+			for (int i = 0; i < paramsNr; i++) {
+				AsyncWebParameter* p = request->getParam(i);
+				dbgSerial.print("Param name: "); dbgSerial.print(p->name());
+				dbgSerial.print(", value: "); dbgSerial.println(p->value());
+				if ((p->name()) == "ssid")
+					ssid = (p->value());
+				if ((p->name()) == "pass")
+					pass = (p->value());
+				if ((p->name()) == "scope")
+					strcpy(scope, (p->value()).c_str());
+			}
+
+			preferences.begin("EQG2HBX", false);						// Access EQG2HBX namespace
+
+			dbgSerial.print("Original - ssid: "); dbgSerial.print(preferences.getString("STA_SSID"));
+			dbgSerial.print(", pass: "); dbgSerial.print(preferences.getString("STA_PASS"));
+			dbgSerial.print(", Telescope: "); dbgSerial.println(preferences.getString("TELESCOPE"));
+
+			if (strlen(ssid.c_str()) != 0) preferences.putString("STA_SSID", ssid);
+			if (strlen(pass.c_str()) != 0) preferences.putString("STA_PASS", pass);
+			if (strlen(scope) != 0) preferences.putString("TELESCOPE", scope);
+
+			dbgSerial.print("Updated - ssid: ");  dbgSerial.print(preferences.getString("STA_SSID"));
+			dbgSerial.print(", pass: "); dbgSerial.print(preferences.getString("STA_PASS"));
+			dbgSerial.print(", Telescope: "); dbgSerial.println(preferences.getString("TELESCOPE"));
+			preferences.end();
+		}
+	});
+	
+	// HTTP basic authentication
+  server.on("/login", HTTP_GET, [](AsyncWebServerRequest *request){
+		dbgSerial.print("B4 http_username: ");
+		dbgSerial.print(http_username);
+		dbgSerial.print(", http_password: ");
+		dbgSerial.println(http_password);
+
+		if(!request->authenticate(http_username, http_password))
+        return request->requestAuthentication();
+		else {
+			dbgSerial.print("http_username: ");
+			dbgSerial.print(http_username);
+			dbgSerial.print(", http_password: ");
+			dbgSerial.println(http_password);
+		}
+    request->send(200, "text/plain", "Login Success!");
+		loginValid = true;
+  });
+
+	// Simple Firmware Update Form
+
+	// send /update.htm file when /index is requested
+	server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request) {
+		if (loginValid == true) {
+			request->send(SPIFFS, "/update.htm");
+		}
+		else {
+			request->send(200, "text/plain", "Please Login");
+		}
+	});
+
+	// Process POST from Update Form
+	server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
+		shouldReboot = !Update.hasError();
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", shouldReboot?"OK":"FAIL");
+    response->addHeader("Connection", "close");
+    request->send(response);
+  },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+    if(!index){
+      dbgSerial.printf("Update Start: %s\n", filename.c_str());
+
+//      Update.runAsync(true);
+//			if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)) {
+			if (!Update.begin(0x140000)) {
+        Update.printError(dbgSerial);
+      }
+    }
+    if(!Update.hasError()){
+      if(Update.write(data, len) != len){
+        Update.printError(dbgSerial);
+      }
+    }
+    if(final){
+      if(Update.end(true)){
+				dbgSerial.printf("Update Success: %uB\n", index+len);
+      } else {
+        Update.printError(dbgSerial);
+      }
+    }
+  });
+}
+
+void browseService(const char * service, const char * proto) {
+	Serial.printf("Browsing for service _%s._%s.local. ... ", service, proto);
+	int n = MDNS.queryService(service, proto);
+	if (n == 0) {
+		Serial.println("no services found");
+	}
+	else {
+		Serial.print(n);
+		Serial.println(" service(s) found");
+		for (int i = 0; i < n; ++i) {
+			// Print details for each service found
+			Serial.print("  ");
+			Serial.print(i + 1);
+			Serial.print(": ");
+			Serial.print(MDNS.hostname(i));
+			Serial.print(" (");
+			Serial.print(MDNS.IP(i));
+			Serial.print(":");
+			Serial.print(MDNS.port(i));
+			Serial.println(")");
+		}
+	}
+	Serial.println();
+}
+
 // ================================================================================================
 
 void HBXWiFiSetup() {
 
-	pinMode(PROTOCOL, INPUT_PULLUP);		// ESP_NOW(1),  UDP(0)
-	pinMode(MODE, INPUT_PULLUP);				// AP(1),       STA(0)
-	pinMode(SERIAL, INPUT_PULLUP);
-	
-	digitalWrite(SERIAL, HIGH);
-	digitalWrite(PROTOCOL, HIGH);
-	digitalWrite(MODE, HIGH);
-  
-	dbgSerial.println("");
-  dbgSerial.print("digitalRead(PROTOCOL): ");
-  dbgSerial.println(digitalRead(PROTOCOL));
-	dbgSerial.print("digitalRead(MODE)    : ");
-	dbgSerial.println(digitalRead(MODE));
-	dbgSerial.print("digitalRead(SERIAL)  : ");
-	dbgSerial.println(digitalRead(SERIAL));
-  
-  if (digitalRead(PROTOCOL))
-    UDPFlag = false;
-  else
-    UDPFlag = true;
+	// TODO
+	// Read from EEPROM
 
-  if (digitalRead(MODE))
-    APFlag = true;
-  else
-    APFlag = false;
+    UDPFlag = true;			// Either UDP or ESPNOW
+    APFlag = true;			// Either AP  or STA
 
   if (APFlag) { 
   // AP mode       device connects directly to EQMODWiFi (no router)
   // For AP mode:  UDP2Serial: This ESP assigns IP addresses
   // For AP mode:  ESP IP is always 192.168.88.1 (set above)
-    dbgSerial.println("Access Point Mode");
+
+    dbgSerial.println("EQMODWiFi Access Point Mode");
 	// Check preferences for ssid, pass
-		preferences.begin("EQG2HBX", false);						// Access EQG2HBX namespace
+		preferences.begin("EQG2HBX", false);											// Access EQG2HBX namespace
 		if (preferences.getString("AP_SSID", "none") == "none")
-			preferences.putString("AP_SSID", "EQMODWiFi");							// Default EQMOD
+			preferences.putString("AP_SSID", "EQMODWiFi");					// Default EQMOD
 		if (preferences.getString("AP_PASS", "none") == "none")
 			preferences.putString("AP_PASS", "CShillit0");
 		ssid = preferences.getString("AP_SSID", "none");
@@ -143,50 +321,85 @@ void HBXWiFiSetup() {
 		preferences.end();
 
   	WiFi.mode(WIFI_AP);
-  	WiFi.softAPConfig(ip, ip, netmask);				// softAP ip
+  	WiFi.softAPConfig(ip, ip, netmask);												// softAP ip
   	WiFi.softAP(ssid.c_str(), pass.c_str());									// softAP ssid, pass
+		dbgSerial.print("SoftAP IP address: "); dbgSerial.println(WiFi.softAPIP());
   }
-  else {
-  // STA mode       EQMODWiFi connects to network router and gets an IP
-  // For STA mode:  Host software must detect that IP
-  // For STA mode:  UDP2Serial router network assigns IP address
-    dbgSerial.println("Station Mode");
-	// Check preferences for ssid, pass
+	else {
+		// STA mode       EQMODWiFi connects to network router and gets an IP
+		// For STA mode:  Host software must detect that IP
+		// For STA mode:  UDP2Serial router network assigns IP address
+		// For STA mode:  Start webserver, mDNS and accept changes to ssid, pass, Telescope etc
+
+		dbgSerial.println("EQMODWiFi Station Mode");
+		// Check preferences for ssid, pass
 		preferences.begin("EQG2HBX", false);						// Access EQG2HBX namespace
 		if (preferences.getString("STA_SSID", "none") == "none")
-			preferences.putString("STA_SSID", "HAPInet");							// Default Home Network
+			preferences.putString("STA_SSID", "EQGnet");							// Default Home Network
 		if (preferences.getString("STA_PASS", "none") == "none")
-			preferences.putString("STA_PASS", "HAPIconnection");
+			preferences.putString("STA_PASS", "EQGconnect");
 		ssid = preferences.getString("STA_SSID", "none");
 		pass = preferences.getString("STA_PASS", "none");
 		preferences.end();
-		
+
 		WiFi.mode(WIFI_STA);
-  	WiFi.begin(ssid.c_str(), pass.c_str());
+		WiFi.begin(ssid.c_str(), pass.c_str());
 		int i = 0;
-  	while ((WiFi.status() != WL_CONNECTED) && (i++ < 100)) {
-  		delay(100);
-      dbgSerial.print(".");
-  	}
-		if (i >= 100) {
-			WiFi.begin("HAPInet", "HAPIconnect");
+		while ((WiFi.status() != WL_CONNECTED) && (i++ < 50)) {
+			delay(100);
+			dbgSerial.print(i);	dbgSerial.print(", ssid: "); dbgSerial.print(ssid.c_str());	dbgSerial.print(", pass: "); dbgSerial.println(pass.c_str());
+
+		}
+		if (i >= 50) {
+			WiFi.begin("EQGnet", "EQGconnect");
 			while (WiFi.status() != WL_CONNECTED) {
 				delay(100);
 				dbgSerial.print("!");
 			}
 		}
-    dbgSerial.println(" connected");
-/*
-		server.on("/hello", HTTP_GET, [](AsyncWebServerRequest *request) {
-			request->send(200, "text/plain", "Hello World");
-		});
+		dbgSerial.println(" connected");
+
+		if (!MDNS.begin("eqmodwifi")) {
+			Serial.println("Error setting up MDNS responder!");
+			while (1) {
+				delay(1000);
+			}
+		}
+		Serial.println("mDNS responder started");
+
+		// Load 'server.on' responses
+		AsyncServerResponseSetup();
+		WiFi.scanNetworks();
+
+		// attach filesystem root at URL /fs
+		if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
+			dbgSerial.println("SPIFFS Mount Failed, SPIFF formatted");
+		}
+		else
+			dbgSerial.println("SPIFFS Mounted .. ");
+		writeFile(SPIFFS, "/www/index.htm", EQ2HBX_Version.c_str());
+		listDir(SPIFFS, "/", 0);
+
+		server.serveStatic("/", SPIFFS, "/www/").setDefaultFile("index.htm");
+
+		// Catch-All Handlers
+		// Any request that can not find a Handler that canHandle it
+		// ends in the callbacks below.
+		server.onNotFound(onRequest);
+		server.onFileUpload(onUpload);
+		server.onRequestBody(onBody);
 
 		server.begin();
-		*/
-		}
+		// Add service to MDNS-SD
+		MDNS.addService("_http", "_tcp", 80);
+		MDNS.addService("_osc", "_udp", localUdpPort);
+
+		// browseService("http", "tcp");
+	}
 
 	dbgSerial.print("ssid: "); dbgSerial.println(ssid.c_str());
 	dbgSerial.print("pass: "); dbgSerial.println(pass.c_str());
+
   if (!UDPFlag) {
   // ESP_NOW mode   (EQMODWiFi responds to MAC protocol)
     dbgSerial.println("ESP_NOW Mode");

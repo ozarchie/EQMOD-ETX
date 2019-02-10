@@ -15,24 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="EQG2HBXE32.ino" />
-    <None Include="EQGProtocol.ino">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="ETXProtocol.ino">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="HBXComms.ino">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="HBXWiFiServer.ino">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="HBXzTest.ino">
-      <Filter>Source Files</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="__vm\.EQG2HBXE32.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -51,5 +33,26 @@
     <ClInclude Include="HBXWiFiServer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="HBXFileSystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Hardware.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="EQG2HBXE32.ino" />
+    <None Include="EQGProtocol.ino" />
+    <None Include="ETXProtocol.ino" />
+    <None Include="HBXComms.ino" />
+    <None Include="HBXFileSystem.ino" />
+    <None Include="HBXWiFiServer.ino" />
+    <None Include="HBXzTest.ino" />
+    <None Include="HBXOTA.ino" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="data\eq.gif">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

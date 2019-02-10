@@ -1,43 +1,30 @@
-// Visual Micro is in vMicro>General>Tutorial Mode
-// 
 /*
     Name:       EQG2HBXE32.ino
-    Created:	2018-09-01 10:07:17 AM
+    Created:		2018-09-01 10:07:17 AM
     Author:     JOHNWIN10PRO\John
 */
+#include <Arduino.h>
+#include <stdio.h>
 
-/********************************************************
-  Initialize HBX, translate EQG to HBX
-  ====================================
- *********************************************************/
-#undef m2560
-
-
-
-
+// Define User Types below here or use a .h file
+//
 #include <Preferences.h>
 #include <dummy.h>
-#define mESP32
-#define mTEST
-
-#include "HBXWiFiServer.h"
+#include "Hardware.h"
+#include "EQG2HBX.h"
 #include "EQGProtocol.h"
 #include "ETXProtocol.h"
 #include "HBXComms.h"
-#include "EQG2HBX.h"						        // All the declared variables
-
- 
- // Define User Types below here or use a .h file
-//
-
+#include "HBXWiFiServer.h"
+#include "HBXFileSystem.h"
 
 // Function Prototypes
 //
 void UpdateETX(void);
-void CheckETXState(void);
-void TimerDelaymS(unsigned long );
+void CheckETXStatus(unsigned char);
+void CheckETXState(unsigned char);
+void TimerDelaymS(unsigned long);
 void TimerDelayuS(unsigned int);
-
 
 // Functions
 //
@@ -64,22 +51,30 @@ void TimerDelayuS(unsigned int d) {
 	delayMicroseconds(d);
 }
 
-void CheckETXState(void) {
+void CheckETXStatus(unsigned char Motor) {
+	/**************************************************************************************************
+ *   Get ETXStatus
+ **************************************************************************************************/
+	HBXGetStatus(Motor);
+}
+
+void CheckETXState(unsigned char Motor) {
 	/**************************************************************************************************
  *   Check ETXState
  **************************************************************************************************/
-	HBXGetStatus(AzMotor);
-	HBXGetStatus(AltMotor);
-
-	ETXState(AzMotor);									// Check the Az motor state
-	ETXState(AltMotor);									// Check the Alt motor state
+	ETXState(Motor);									// Check the motor state
 }
+
+/********************************************************
+	Initialize HBX, translate EQG to HBX
+	====================================
+ *********************************************************/
 
 // =======================================================================================================
 void setup()
 {
-	int	i, j, k;
-	bool b;
+//	int	i, j, k;
+//	bool b;
 
 #ifdef mESP32
 	dbgSerial.begin(115200);											// debug
@@ -87,7 +82,7 @@ void setup()
 	delay(10);
 #endif
 
-	dbgSerial.println("ETX V2.04, ETX-EQMOD V1.03");
+	dbgSerial.println(EQ2HBX_Version);
 	DelayTimer = micros();							// Initialize timers, counts
 	StatusTimer = DelayTimer;
 	StatusTime = DelayTimer;
@@ -97,12 +92,12 @@ void setup()
 	HBXWiFiSetup();
 #endif
 
-	pinMode(AzLED, OUTPUT);
-	pinMode(AltLED, OUTPUT);
-	digitalWrite(AzLED, LOW);
-	digitalWrite(AltLED, LOW);
-	pinMode(TESTHBX, INPUT_PULLUP);     // Initialize Mode jumpers
-	digitalWrite(TESTHBX, HIGH);				// Use internal PUR, write 1 to O/P
+	pinMode(SCOPELED, OUTPUT);
+	pinMode(EQGLED, OUTPUT);
+	digitalWrite(SCOPELED, LOW);
+	digitalWrite(EQGLED, LOW);
+	// pinMode(TESTHBX, INPUT_PULLUP);     // Initialize Mode jumpers
+	// digitalWrite(TESTHBX, HIGH);				// Use internal PUR, write 1 to O/P
 
 	axis[AzMotor].PrintStatus0 = 0;         // Disable printing "status polls" with no change
 	axis[AltMotor].PrintStatus0 = 0;        // Disable printing "status polls" with no change
@@ -112,27 +107,51 @@ void setup()
 	// **************************
 	// Check for HBX Testing Mode
 	// ==========================
-	dbgSerial.print("digitalRead(TESTHBX)  : ");
+/*
+dbgSerial.print("digitalRead(TESTHBX)  : ");
 	dbgSerial.println(digitalRead(TESTHBX));
 	while (digitalRead(TESTHBX) == 0) {   // Check if test jumper installed
 		dbgSerial.print("digitalRead(TESTHBX)  : ");
 		dbgSerial.println(digitalRead(TESTHBX));
 		HBXTestLoop();                      // Execute test code until jumper removed
 	};
-
+*/
 	dbgSerial.println("HBX Initialization");
-	AzInitialise();
-	AltInitialise();
+
+	// Read Motor Type to determine telescope type
+	// -------------------------------------------
+	preferences.begin("EQG2HBX", false);								// Access EQG2HBX namespace
+	telescope = 0;																			// Default ETX60
+	if (!(preferences.getUChar("TELESCOPE", 0) == 0))	{	// If it exists check telescope table for a match
+		telescope = (preferences.getUChar("TELESCOPE", 0));
+	}
+	dbgSerial.print("Telescope: ");
+	dbgSerial.print(telescope);
+	dbgSerial.print(", ");
+	dbgSerial.println(ratio[telescope][0].Telescope);
+	if (!(preferences.getUChar("PROTOCOL", 0) == 0)) {	// If it exists get protocol type (UDP, NOW)
+		protocol = (preferences.getUChar("PROTOCOL", 0));
+	}
+	dbgSerial.print("Protocol: ");
+	dbgSerial.print(protocol);
+	dbgSerial.print(", ");
+	if (!(preferences.getUChar("STATION", 0) == 0)) {	// If it exists get station type (AP, STA)
+		protocol = (preferences.getUChar("STATION", 0));
+	}
+	dbgSerial.print("Station: ");
+	dbgSerial.print(station);
+	dbgSerial.print(", ");
+	preferences.end();
+
+	AzInitialise(telescope);
+	AltInitialise(telescope);
 	PrintRatioValues(telescope);
 	PrintHbxValues(AzMotor);
 	PrintHbxValues(AltMotor);
 
 	// Initialize HBX communications as outputs
 	// It will use H2X communications
-	HCL1Talk();                 // Set for Talking on RAClk
-	HCL2Talk();                 // Set for Talking on DECClk
-	HDAListen();
-	TimerDelaymS(STARTTIME);
+	HBXReset();
 
 	// Reset the motors (RA and DEC)
 	//  and wait until both respond to a command 
@@ -141,46 +160,28 @@ void setup()
 
 	// Get Motor Type from Az MC ( assume both same type of motor)
 
-	dbgSerial.print("Get Motor Type: ");
 	do {
 		axis[AzMotor].MotorType = 0x00;
 		if (HBXSendCommand(GetMotorType, AzMotor))
 			axis[AzMotor].MotorType = HBXGetByte(AzMotor);
 	} while (!axis[AzMotor].MotorType);
 	axis[AltMotor].MotorType = axis[AzMotor].MotorType;
-	dbgSerial.println(axis[AltMotor].MotorType);
+	dbgSerial.println(""); dbgSerial.print("Motor Type: "); dbgSerial.print(axis[AltMotor].MotorType);
 
-	dbgSerial.println("Check Calibrate LEDs");
-
+	// Handle position sensors LED current
+	// -----------------------------------
+	dbgSerial.println(""); dbgSerial.print("Check Calibrate LEDs");
 	preferences.begin("EQG2HBX", false);						// Access EQG2HBX namespace
-
-// Handle position sensors LED current
-// -----------------------------------
-	if (preferences.getUChar("AzLEDI", 0) == 0) {		// If it does not exist, return 0
-// Calibrate motors
-		if (HBXSendCommand(CalibrateLED, AzMotor));
-		TimerDelaymS(2500);
-		if (HBXSendCommand(CalibrateLED, AltMotor))
-			TimerDelaymS(2500);
-// Read the calibration
-		dbgSerial.print("Read LEDs - AzMotor: ");
-		if (HBXSendCommand(GetLEDI, AzMotor))
-			axis[AzMotor].HBXLEDI = HBXGetByte(AzMotor);
-		dbgSerial.print(axis[AzMotor].HBXLEDI);
-		dbgSerial.print(", AltMotor: ");
-		if (HBXSendCommand(GetLEDI, AltMotor))
-			axis[AltMotor].HBXLEDI = HBXGetByte(AltMotor);
-		dbgSerial.println(axis[AltMotor].HBXLEDI);
-// Save it to preferences
-		preferences.putUChar("AzLEDI", axis[AzMotor].HBXLEDI);
-		preferences.putUChar("AltLEDI", axis[AltMotor].HBXLEDI);
+	if (preferences.getUChar("AzLEDI", 0) == 0) {		// If it does not exist, calibrate the LEDs
+		CalibrateLEDs();
 	}
 // Read stored LED currents
 	axis[AzMotor].HBXLEDI = preferences.getUChar("AzLEDI", 0);
 	axis[AltMotor].HBXLEDI = preferences.getUChar("AltLEDI", 0);
 	preferences.end();
 
-// Set the MC values
+// Set the MC LED values
+	dbgSerial.println(""); dbgSerial.print("Set MC LED values");
 	if (HBXSendCommand(SetLEDI, AzMotor))
 		HBXSendByte(axis[AzMotor].HBXLEDI, AzMotor);
 	axis[AzMotor].HBXP1 = axis[AzMotor].HBXLEDI;
@@ -192,8 +193,12 @@ void setup()
 	HBXPrintStatus(AltMotor);
 
 	// Set the Offset Clear Command
-	//  Send HBXP1, HBXP2 - which were initialised to 0    
-	dbgSerial.println("Reset any ETX offset bytes");
+	//  Send HBXP1, HBXP2    
+	dbgSerial.println(""); dbgSerial.print("Reset any ETX offset bytes");
+	axis[AzMotor].HBXP1 = 0;
+	axis[AzMotor].HBXP2 = 0;
+	axis[AltMotor].HBXP1 = 0;
+	axis[AltMotor].HBXP2 = 0;
 	if (HBXSendCommand(SetOffset, AzMotor))
 		HBXSend2Bytes(AzMotor);
 	TimerDelaymS(CMNDTIME);
@@ -202,7 +207,7 @@ void setup()
 	TimerDelaymS(CMNDTIME);
 
 	// Stop the motors (RA and DEC) 
-	dbgSerial.println("Stop motors");
+	dbgSerial.println(""); dbgSerial.print("Stop motors");
 	do {
 		P1 = 0;
 		if (HBXSendCommand(Stop, AzMotor)) P1 += 1;
@@ -210,7 +215,7 @@ void setup()
 	} while (P1 < 2);
 
 	// Read status
-	dbgSerial.println("Read Status");
+	dbgSerial.println(""); dbgSerial.println("Read Status");
 	HBXGet2Status();          // Check and read both motor states
 
 	dbgSerial.println("Setup Complete. Listening for commands ..");
@@ -234,10 +239,20 @@ void loop()
 
 	dbgRx();                            // Check for comms from debug port for telescope values
 
-	// Check ETX motors status and state
-	if ((micros() - StatusTimer) > (ETXDELAY * 1000)) {   // ~6.55mS
+	// Check ETX motor status and state
+	if ((micros() - StateTimer) > (STATEDELAY * 1000)) {   // ~6.55mS
+		if (StateSelect) StateSelect = false;
+		else StateSelect = true;
+		StateTimer = micros();
+		if (StateSelect) CheckETXState(AzMotor);
+		else  CheckETXState(AltMotor);
+	}
+	if ((micros() - StatusTimer) > (STATUSDELAY * 1000)) {   // ~50mS
+		if (StatusSelect) StatusSelect = false;
+		else StatusSelect = true;
 		StatusTimer = micros();
-		CheckETXState();
+		if (StatusSelect) CheckETXStatus(AzMotor);
+		else  CheckETXStatus(AltMotor);
 	}
 
 	// Check any incoming characters from the EQMOD serial interface
@@ -256,11 +271,14 @@ void loop()
 	while (EQGTxoPtr != EQGTxiPtr) {	
 
 		// Send any characters that are ready to go to the WiFi interface
+		digitalWrite(EQGLED, HIGH);
 		HBXCheckTx();
 		EQGTxoPtr &= EQGMASK;
+		digitalWrite(EQGLED, LOW);
 	}
 //	TimerDelaymS(1);
 //	yield();
+ // HandleOTA();
 }
 
 // End loop()

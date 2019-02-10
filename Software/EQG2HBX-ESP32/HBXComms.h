@@ -1,44 +1,12 @@
 /*
  * Copyright 2017, 2018 John Archbold
 */
-#include <Arduino.h>
 
 /********************************************************
   EQG Protocol function definitions
   =================================
  *********************************************************/
-#ifndef HBXComms
-#define HBXComms
-
-#include <EEPROM.h>
-
- // Serial port definitions for HBX interface
- // =========================================
-
-#ifdef m2560
-#define dbgSerial Serial
-#define EQGSerial Serial1
-#endif
-
-#ifdef mESP32
-#define dbgSerial Serial
-#define EQGSerial Serial2
-#endif
-
-// Pin definitions for HBX interface
-// =================================
-#ifdef m2560
-#define HDA1            8           // Pin2, 4, 6 on HBX interface
-#define HCL1            2           // Pin3 on HBX interface
-#define HDA2            10          // Not used
-#define HCL2            3           // Pin5 on HBX interface
-#endif
-
-#ifdef  mESP32
-#define HDA1            27          // Pin2, 4, 6 on HBX interface
-#define HCL1            26          // Pin3 on HBX interface
-#define HCL2            25          // Pin5 on HBX interface
-#endif
+#pragma once
 
 #define CR              0x0d
 #define LF              0x0a
@@ -46,19 +14,20 @@
 #define HBXLEN	16
 #define HBXMASK	HBXLEN-1
 
-#define H2XRESETTIME  25             // Reset H2X bus
-#define BITTIME       120            // H2X clock ~200uS i.e 100us Low/High
-#define HIGHTIME      120            // H2X clock ~200uS i.e 100us Low/High
-#define LOWTIME       120            // H2X clock ~200uS i.e 100us Low/High
-#define DSTABLE       60             // H2X data write delay ~ 50uS
-#define DGLITCH       5              // H2X data glitch sample
-#define ETXDELAY      6.55           // H2X ETX poll delay (mS)
-#define CMNDTIME      1              // H2X command delay (mS)
-#define STARTTIME     50             // H2X startup time for motors
-#define CLOCKTIMEOUT  50             // H2X Clock transition timeout (uS) (for monitor mode)
-#define MOTORDETECT   500            // H2X Detect Motor controller
+#define H2XRESETTIME  25            // Reset H2X bus
+#define BITTIME       100						// H2X clock ~200uS i.e 100us Low/High
 
-unsigned char HBXBitTime = 128;
+#define STATUSDELAY   50						// H2X ETX status poll delay (mS)
+#define STATEDELAY		6.55          // H2X ETX state poll delay (mS)
+#define CMNDTIME      1             // H2X command delay (mS)
+#define STARTTIME     50            // H2X startup time for motors (mS)
+#define CLOCKTIMEOUT  50            // H2X Clock transition timeout (uS) (for monitor mode)
+#define MOTORDETECT   500           // H2X Detect Motor controller (mS)
+
+uint8_t HDA = HDAAz;								// Default
+uint8_t HCL = HCLAz;								// Default
+
+unsigned char HBXBitTime = BITTIME;
 void TimerDelayuS(unsigned int);
 
 bool HBXSendCommand(unsigned char, unsigned char);
@@ -72,24 +41,11 @@ void HBXGet3Bytes(unsigned char);
 
 void HDAListen(void);
 void HDATalk(void);
-void HCL1Listen(void);
-void HCL1Talk(void);
-void HCL2Listen(void);
-void HCL2Talk(void);
-void H2XReset(void);
-//bool ResetMotor(unsigned char);
+void HBXReset(void);
 
 long TwosComplement(long);
-
-unsigned long eeprom_crc(void);
-unsigned long get_eeprom_crc(void);
-bool set_eeprom_crc(void);
-bool check_eeprom_crc(void);
 
 // Testing
 void HBXTestLoop(void);
 void HBXTest(void);
 bool HBXGet2Status(void);
-
-#endif
-

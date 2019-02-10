@@ -15,7 +15,7 @@
 #define CR      0x0d
 #define LF      0x0a
 
-float SIDEREALSECS        = 86164.091;         // Some astronomical constants
+float SIDEREALSECS        = 86164.098903691;         // Some astronomical constants
 float SOLARSECS           = 86400;
 float LUNARSECS           = 89309;
 
@@ -28,7 +28,7 @@ float LUNARSECS           = 89309;
 //	Get Motor Controller Version 
 //	:e1[0D]
 //	=llhhMM[0D]
-//	============
+//	===========
 e  0    6  Get Motor Controller Version          // =llhhMM[0D]  MM = mount type,
 																								 //             x00 = "EQ6Pro"
 																								 //             x01 = "HEQ5"
@@ -130,12 +130,24 @@ enum SkywatcherSetFeatureCmd
 // AZEQ5          =0B6000  at boot
 // AZEQ6          =0B3000
 // EQ8            =076000
+//								EFCDAB
+#define AEQ6				0x003000				// !:J3,  Polar LED
+#define AEQ5				0x003008				// !:J3,  Polar LED, az/eq
+#define AEQ3				0x003000				// !:J3,  Polar LED
+#define AAZEQ5			0x00B008				// !:J3,  Polar LED, WiFi, AZ/EQ
 
-//#define EQGVERSION        0x020400    // Pretend EQ6/5
-//#define EQGVERSION        0x030100    // Pretend EQ3-AzEq
-#define EQGVERSION        0x020600    // Pretend EQ5-AzEq
-//													EFCDAB
-#define EQGASSETS					0x008008		// AZ/EQ and Polar LED
+// Motor firmware versions
+#define VEQ6        0x000204    // Pretend EQ6/5
+#define VHEQ5       0x010204    // Pretend HEQ5
+#define VEQ5        0x020204    // Pretend EQ5
+#define VEQ3        0x030301    // Pretend EQ3
+#define VEQ8        0x040301    // Pretend EQ3
+#define VAZEQ6      0x050211		// Pretend AZEQ6
+#define VAZEQ5      0x060301		// Pretend AZEQ5
+
+#define EQGVERSION	VEQ6
+#define EQGASSETS		AEQ6
+
 
 // :I := ( :b * 1296000 / :a ) / Speed    ( where Speed is in arcsec/sec )
 // If :I is greater than about 10, then the slew will need to use :G = LoSpeed mode
@@ -147,10 +159,7 @@ enum SkywatcherSetFeatureCmd
 // ==============================
 // IVALUE = (axis[EQGMOTOR].bVALUE * 1296000) / axis[EQGMOTOR].STEPSPER360)
 
-#define EQG_AzCENTRE      ETX_AzCENTRE 
-#define EQG_AltCENTRE     ETX_AltCENTRE
 #define EQG_gVALUE        0x000010
-
 
 #define EQGMAXIMUMSPEED   12          // 0x0C
 

@@ -1,7 +1,6 @@
 /*
  * Copyright 2017, 2018 John Archbold
 */
-#include <Arduino.h>
 
 /********************************************************
   ETX Protocol related functions
@@ -20,25 +19,26 @@ bool ETXState(unsigned char Motor) {
     case ETXCheckStartup:
       if (axis[Motor].ETXMotorStatus & MOVEAXIS) {              // Start moving
 
-dbgSerial.println(""); dbgSerial.print("ETXCheckStartup - Motor: "); dbgSerial.print(Motor); dbgSerial.print(" MOVE");
+//dbgSerial.println(""); dbgSerial.print("ETXCheckStartup - Motor: "); dbgSerial.print(Motor); dbgSerial.print(" MOVE");
 
         distance = axis[Motor].Target - axis[Motor].Position;   // Distance to target
         if (axis[Motor].ETXMotorStatus & MOVEDECR)              // If it is decreasing
           distance = TwosComplement(distance);
-dbgSerial.print(" Distance: "); dbgSerial.print(distance);
+
+//dbgSerial.print(" Distance: "); dbgSerial.print(distance);
 
         if (axis[Motor].ETXMotorStatus & MOVEHIGH) {            // High Speed Slew ?
           if (axis[Motor].ETXMotorStatus & MOVESLEW) {
             axis[Motor].ETXMotorState = ETXSlewMotor;           // Move axis using high speed multiplier
 
-dbgSerial.print(" HIGH SLEW");
+//dbgSerial.print(" HIGH SLEW");
 
           }
         }
         else {                                                  // GoTo or Low Speed Slew
           axis[Motor].ETXMotorState = ETXCheckSpeed;
 
-dbgSerial.print(" GOTO");
+//dbgSerial.print(" GOTO");
 
         }
 
@@ -46,7 +46,7 @@ dbgSerial.print(" GOTO");
           if (axis[Motor].MotorControl & SlewHBX) {             // May need to slew for large changes
               axis[Motor].ETXMotorState = ETXSlewMotor;         // Slew to M-point
 
-dbgSerial.print(" SLEW");
+//dbgSerial.print(" SLEW");
 
           }
           else {
@@ -58,16 +58,16 @@ dbgSerial.print(" SLEW");
               axis[Motor].TargetSpeed = (axis[Motor].TargetSpeed >> 1);
             axis[Motor].Speed = 0;                              // Starting from 0 
 
-dbgSerial.print(" STEP");
+//dbgSerial.print(" STEP");
           }
           if (distance < OffsetMax) {                           // Check for really small moves (< 16 steps)
             axis[Motor].ETXMotorState = ETXMotorEnd;            // Use Adjust offset
     
-dbgSerial.print(" OFFSET");    
+//dbgSerial.print(" OFFSET");    
           }
           if (distance > (axis[Motor].OneDegree << 3)) {        // Always slew for > 8 degrees
             axis[Motor].ETXMotorState = ETXSlewMotor;
-dbgSerial.print(" GoToSLEW");
+//dbgSerial.print(" GoToSLEW");
           }
         }
       }
@@ -75,18 +75,16 @@ dbgSerial.print(" GoToSLEW");
   
     case ETXSlewMotor:
 
-dbgSerial.println(""); dbgSerial.print("ETXSlewMotor Motor: "); dbgSerial.print(Motor); dbgSerial.print(" SLEW Cmd: ");
+//dbgSerial.println(""); dbgSerial.print("ETXSlewMotor Motor: "); dbgSerial.print(Motor); dbgSerial.print(" SLEW Cmd: ");
 
-      if (Motor == MotorAz) digitalWrite(AzLED, HIGH);              // Turn on the LED
-      else digitalWrite(AltLED, HIGH);
-
+      digitalWrite(SCOPELED, HIGH);              // Turn on the LED
       HBXSendCommand(Stop, Motor);                                  // Stop the motor
 
-      if (axis[Motor].ETXMotorStatus & MOVEDECR)										// -ve
+      if (axis[Motor].ETXMotorStatus & MOVEDECR)										// -ve i.e. -CCW
         axis[Motor].Command = SlewReverse;
       else
         axis[Motor].Command = SlewForward;
-			dbgSerial.print(axis[Motor].Command, HEX);
+//dbgSerial.print(axis[Motor].Command, HEX);
 
 			// Send the command to the ETX
       HBXSendCommand(axis[Motor].Command, Motor);										// SLEW
@@ -105,7 +103,7 @@ dbgSerial.println(""); dbgSerial.print("ETXSlewMotor Motor: "); dbgSerial.print(
           axis[Motor].TargetSpeed = axis[Motor].DEGREERATE1;				// Set initial speed
           axis[Motor].Speed = axis[Motor].DEGREERATE1;
           axis[Motor].SpeedState = 0;
-  dbgSerial.print(" GoToSLEW END");
+//dbgSerial.print(" GoToSLEW END");
           }
       }
       if (axis[Motor].MotorControl & SlewHBX) {                     // Slewing to M-point
@@ -113,6 +111,7 @@ dbgSerial.println(""); dbgSerial.print("ETXSlewMotor Motor: "); dbgSerial.print(
         axis[Motor].ETXMotorState = ETXCheckSlowDown;               // Slew until SlowDown
       }
 
+/*
 dbgSerial.println(""); dbgSerial.print("ETXSlewMotor Motor: "); dbgSerial.print(Motor); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Cmd: "); dbgSerial.print(axis[Motor].Command, HEX);
@@ -122,15 +121,14 @@ dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
 dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].Speed, HEX);
 dbgSerial.print(" TargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
 dbgSerial.print(" SpeedState: "); dbgSerial.println(axis[Motor].SpeedState, HEX);
-      break;
+*/
+			break;
   
     case ETXStepMotor:
 
-dbgSerial.println(""); dbgSerial.print("ETXStepMotor Motor: "); dbgSerial.print(Motor); dbgSerial.print(" STEP Cmd: ");
+//dbgSerial.println(""); dbgSerial.print("ETXStepMotor Motor: "); dbgSerial.print(Motor); dbgSerial.print(" STEP Cmd: ");
 
-      if (Motor == MotorAz) digitalWrite(AzLED, HIGH);      // Turn on the LED
-      else digitalWrite(AltLED, HIGH);
-      
+      digitalWrite(SCOPELED, HIGH);      // Turn on the LED
       if (axis[Motor].MotorControl & SpeedHBX)              // Stepping, High or Low speed
         axis[Motor].Command = SpeedStart;                   // Use SpeedStart to start motion
       else {
@@ -147,7 +145,7 @@ dbgSerial.println(""); dbgSerial.print("ETXStepMotor Motor: "); dbgSerial.print(
       axis[Motor].HBXP2 = (P1 >>  8) & 0xFF;
       axis[Motor].HBXP3 = P1 & 0xFF;
 
-			dbgSerial.print(axis[Motor].Command, HEX);
+//dbgSerial.print(axis[Motor].Command, HEX);
 
       // Send the command
       // ----------------
@@ -173,6 +171,7 @@ dbgSerial.println(""); dbgSerial.print("ETXStepMotor Motor: "); dbgSerial.print(
       // Calculate absolute distance to slowdown
       // ---------------------------------------
 
+/*
 dbgSerial.println(""); dbgSerial.print("ETXCheckSlowDown Motor: "); dbgSerial.print(Motor); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Cmd: "); dbgSerial.print(axis[Motor].Command, HEX);
@@ -181,14 +180,14 @@ dbgSerial.print(",  SD: "); dbgSerial.print(axis[Motor].SlowDown, HEX);
 dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
 dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].Speed, HEX);
 dbgSerial.print(" TargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
-
+*/
 //    distance = axis[Motor].SlowDown - axis[Motor].Position;
     distance = (axis[Motor].Target - 0x1000) - axis[Motor].Position;    // Distance to target
     if (axis[Motor].Target < axis[Motor].Position)                // If it is decreasing
       distance = TwosComplement(distance);
 
-dbgSerial.print(" distance: ");
-dbgSerial.print(distance, HEX);
+//dbgSerial.print(" distance: ");
+//dbgSerial.print(distance, HEX);
 
     if (distance <= 0) {
       while(!(HBXSendCommand(Stop, Motor)));                        // Stop the motor
@@ -215,6 +214,7 @@ ETXSlew8        600             // 150 arc-min/sec or 2.5°/sec
 ETXSlew9       1080             // 270 arc-min/sec or 4.5°/sec
 */
 
+/*
 dbgSerial.println(""); dbgSerial.print("ETXCheckSpeed Motor: "); dbgSerial.print(Motor); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
@@ -222,7 +222,7 @@ dbgSerial.print(", Inc: "); dbgSerial.print(axis[Motor].Increment, HEX);
 dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
 dbgSerial.print(" iSpeed: "); dbgSerial.print(axis[Motor].Speed, HEX);
 dbgSerial.print(" iTargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
-
+*/
       axis[Motor].ETXMotorState = ETXStepMotor;                   // Preset set speed as next action
 
 // Ramp up to speed      
@@ -263,8 +263,8 @@ dbgSerial.print(" iTargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX
 
 // Switch to position check, when we are at speed - check done in ETXStepMotor
       
-dbgSerial.print(" oSpeed: "); dbgSerial.print(axis[Motor].Speed, HEX);
-dbgSerial.print(" oTargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
+//dbgSerial.print(" oSpeed: "); dbgSerial.print(axis[Motor].Speed, HEX);
+//dbgSerial.print(" oTargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
 
       break;
   
@@ -275,6 +275,7 @@ dbgSerial.print(" oTargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX
       // Calculate absolute distance to target
       // -------------------------------------
 
+/*
 dbgSerial.println(""); dbgSerial.print("ETXCheckPosition Motor: "); dbgSerial.print(Motor); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
@@ -283,20 +284,14 @@ dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
 dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].Speed, HEX);
 dbgSerial.print(" TargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
 dbgSerial.print(" SpeedState: "); dbgSerial.print(axis[Motor].SpeedState, HEX);
-
+*/
         if (!(axis[Motor].MotorControl & GoToHBX)) {                // Slewing so update position
           break;
         }
 
         distance = axis[Motor].Target - axis[Motor].Position;       // Distance to target
-dbgSerial.print(" distance0: ");
-dbgSerial.print(distance, HEX);
-        
         if (axis[Motor].ETXMotorStatus & MOVEDECR)                  // If it is decreasing
           distance = TwosComplement(distance);
-
-dbgSerial.print(" distance1: ");
-dbgSerial.print(distance, HEX);
 
         if (distance == 0)
           axis[Motor].ETXMotorState = ETXMotorEnd;
@@ -337,7 +332,7 @@ dbgSerial.print(distance, HEX);
           if ((TwosComplement(distance)) > OffsetMax) {                // Not sure how good offset is!
             // Motor has over-shot the target
             // ------------------------------
-            if (axis[Motor].ETXMotorStatus & MOVEDECR)                // EQG -> change direction
+            if (axis[Motor].ETXMotorStatus & MOVEDECR)                // ETX -> change direction
               axis[Motor].ETXMotorStatus &= ~MOVEDECR;
             else
               axis[Motor].ETXMotorStatus |= MOVEDECR;                        
@@ -347,7 +342,7 @@ dbgSerial.print(distance, HEX);
             axis[Motor].ETXMotorState = ETXStepMotor;                 // Change ETX speed
           }
           else{
-            axis[Motor].ETXMotorState = ETXMotorEnd;              // Stop motor, set offset
+            axis[Motor].ETXMotorState = ETXMotorEnd;									// Stop motor, set offset
             axis[Motor].SpeedState = 0;
           }          
         }  
@@ -355,7 +350,7 @@ dbgSerial.print(distance, HEX);
   
     case ETXStopMotor:
 
-dbgSerial.println(""); dbgSerial.print("ETXStopMotor Motor: ");  dbgSerial.print(Motor);
+//dbgSerial.println(""); dbgSerial.print("ETXStopMotor Motor: ");  dbgSerial.print(Motor);
 
       while(!(HBXSendCommand(Stop, Motor)));                    // Stop the motor
       axis[Motor].ETXMotorStatus |= MOVESLEW;                      // ETX Set slewing mode
@@ -372,16 +367,14 @@ dbgSerial.println(""); dbgSerial.print("ETXStopMotor Motor: ");  dbgSerial.print
       break;
       
     case ETXMotorEnd:
-
+/*
 dbgSerial.println(""); dbgSerial.print("ETXMotorEnd Motor: "); dbgSerial.print(Motor); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
 dbgSerial.print(", Inc: "); dbgSerial.print(axis[Motor].Increment, HEX);
 dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
-
-      if (Motor == MotorAz) digitalWrite(AzLED, LOW);           // Turn off the LED
-      else digitalWrite(AltLED, LOW);
-
+*/
+      digitalWrite(SCOPELED, LOW);           // Turn off the LED
       distance = axis[Motor].Target - axis[Motor].Position;      // Distance to target
       if (axis[Motor].Target < axis[Motor].Position)          // If it is decreasing
         distance = TwosComplement(distance);
@@ -396,12 +389,13 @@ dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
         if (HBXSendCommand(axis[Motor].Command, Motor))   // Command OK?
           HBXSend2Bytes(Motor);                           // Send the offset
 
+/*
 dbgSerial.print(" OFFSET");
 dbgSerial.print(" "); dbgSerial.print(axis[Motor].Command, HEX);
 dbgSerial.print(" "); dbgSerial.print(axis[Motor].HBXP1, HEX);
 dbgSerial.print(" "); dbgSerial.print(axis[Motor].HBXP2, HEX);
 dbgSerial.print(" "); dbgSerial.print(axis[Motor].HBXP3, HEX);
-
+*/
       }  
       axis[Motor].Position = axis[Motor].Target;
       axis[Motor].MotorControl &= ~GoToHBX;                  // Clear the flag
@@ -411,50 +405,98 @@ dbgSerial.print(" "); dbgSerial.print(axis[Motor].HBXP3, HEX);
     default:  
       break;
   }
+  return(true);
 }
 
 // Motor functions
 
 bool HBXGetStatus(unsigned char Motor) {
-  axis[Motor].HBXP4 = 0xFF;											// Preset error
-
   if (!HBXSendCommand(GetStatus, Motor)) {
 		dbgSerial.println(""); dbgSerial.print("HBXGetStatus Motor: "); dbgSerial.print(Motor); dbgSerial.println(" Cmd Fail");
 		return(false);
   }
 	HBXGet3Bytes(Motor);     
-  if (axis[Motor].HBXP4 == 0) {									// If no error, update position
-    P1 = (axis[Motor].HBXP1 << 8);
-    P1 |= axis[Motor].HBXP2;										// Convert to 16bits
-    if (axis[Motor].HBXP1 & 0x80)
-      P1 |= 0xffff0000;													// Sign extend HBXP1 for 2s complement
-    axis[Motor].Position += P1;
-    axis[Motor].Position &= 0x00FFFFFF;
+  P1 = (axis[Motor].HBXP1 << 8);							// Update calculated position
+  P1 |= axis[Motor].HBXP2;										// Convert to 16bits
+  if (axis[Motor].HBXP1 & 0x80)
+    P1 |= 0xffff0000;													// Sign extend HBXP1 for 2s complement
+  axis[Motor].Position += P1;
 
-if ((axis[Motor].ETXMotorStatus & MOVEAXIS) && (axis[Motor].Speed != axis[Motor].SIDEREALRATE)) {
-dbgSerial.println(""); dbgSerial.print("HBXGetStatus Motor: "); dbgSerial.print(Motor); 
-dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
-dbgSerial.print(", time: "); dbgSerial.print(StatusTimer / 1000);
-dbgSerial.print(",   P1: "); dbgSerial.print(P1, HEX);
-dbgSerial.print(",   P4: "); dbgSerial.print(axis[Motor].HBXP4, HEX);
-dbgSerial.print(",  Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
-dbgSerial.print(",  Dir: "); dbgSerial.print(axis[Motor].ETXMotorStatus & MOVEDECR, HEX);  
-}   
-    return(true);
-  }
-  else return(false);
+	// Wrap the position if above (+12H or +90deg)
+	if (axis[Motor].Position >= (ETX_CENTRE + (axis[Motor].aVALUE >> 1)))
+		axis[Motor].Position -= axis[Motor].aVALUE;
+	// Wrap the position if below (-12H or -90deg)
+	if (axis[Motor].Position <= (ETX_CENTRE - (axis[Motor].aVALUE >> 1)))
+		axis[Motor].Position += axis[Motor].aVALUE;
+
+	if (StatusCount++ > 51) {
+		StatusCount = 0;
+		dbgSerial.println(""); dbgSerial.print("Motor: "); dbgSerial.print(Motor); dbgSerial.print(", Posn: "); dbgSerial.print(axis[Motor].Position, HEX);
+	}
+	return(true);
 }
 
 bool HBXGet2Status(void) {
   int i;
   do {
     i = 0;       
-    if (HBXGetStatus(AzMotor))
-      i += 1;
-    if (HBXGetStatus(AltMotor))
-      i += 1;
+		if (HBXGetStatus(AzMotor))	i += 1;
+		TimerDelayuS(HBXBitTime << 2);
+
+    if (HBXGetStatus(AltMotor))	i += 1;
+		TimerDelayuS(HBXBitTime << 2);
+
   } while (i < 2);
   return(true);  
+}
+
+// Calibrate motor LED
+// ===================
+void CalibrateLEDs(void) {
+
+
+	while (!(HBXSendCommand(Stop, AzMotor)));			// Stop both motors
+	TimerDelaymS(100);
+	while (!(HBXSendCommand(Stop, AltMotor)));
+	TimerDelaymS(100);
+
+	while (!(HBXGetStatus(AzMotor)))
+		TimerDelaymS(100);
+	while (!(HBXGetStatus(AltMotor)))
+		TimerDelaymS(100);
+
+	HBXSendCommand(SleepHBX, AzMotor);						// Issue Sleep 
+	TimerDelaymS(100);
+	HBXSendCommand(CalibrateLED, AzMotor);				// Issue Calibrate LED
+	TimerDelaymS(4000);
+
+	HBXSendCommand(SleepHBX, AltMotor);
+	TimerDelaymS(100);
+	HBXSendCommand(CalibrateLED, AltMotor);
+	TimerDelaymS(4000);
+
+	HBXSendCommand(GetLEDI, AzMotor); HBXGetByte(AzMotor);
+	HBXSendCommand(GetLEDI, AltMotor);	HBXGetByte(AltMotor);
+
+	while (!(HBXGetStatus(AzMotor)))
+		TimerDelaymS(100);
+	while (!(HBXGetStatus(AltMotor)))
+		TimerDelaymS(100);
+
+	// Read the calibration
+	dbgSerial.println(""); dbgSerial.print("Read LEDs - AzMotor: ");
+	if (HBXSendCommand(GetLEDI, AzMotor))
+		axis[AzMotor].HBXLEDI = HBXGetByte(AzMotor);
+	dbgSerial.print(axis[AzMotor].HBXLEDI);
+	dbgSerial.print(", AltMotor: ");
+	if (HBXSendCommand(GetLEDI, AltMotor))
+		axis[AltMotor].HBXLEDI = HBXGetByte(AltMotor);
+	dbgSerial.print(axis[AltMotor].HBXLEDI);
+
+	// Save it to preferences
+	// Prefences.begin must be set by the caller
+	preferences.putUChar("AzLEDI", axis[AzMotor].HBXLEDI);
+	preferences.putUChar("AltLEDI", axis[AltMotor].HBXLEDI);
 }
 
 void WaitForMotors(void) {
@@ -464,23 +506,19 @@ void WaitForMotors(void) {
 	bool PAz = false;
 	bool PAlt = false;
 	do {
-
 		if (!PAz) {
 			if (HBXSendCommand(GetLEDI, AzMotor))
 				axis[AzMotor].HBXLEDI = HBXGetByte(AzMotor);
-			dbgSerial.print("Az  HBXLEDI: "); dbgSerial.println(axis[AzMotor].HBXLEDI);
+//			dbgSerial.print("Az  HBXLEDI: "); dbgSerial.println(axis[AzMotor].HBXLEDI);
 			TimerDelaymS(CMNDTIME);
-			if ((axis[AzMotor].HBXLEDI != 0) && (axis[AzMotor].HBXLEDI != 0xFF)) {
-
+			if ((axis[AzMotor].HBXLEDI != 0) && (axis[AzMotor].HBXLEDI != 0xFF))
 				PAz = true;
-			}
 		}
-
 		if (!PAlt) {
 			if (HBXSendCommand(GetLEDI, AltMotor))
 				axis[AltMotor].HBXLEDI = HBXGetByte(AltMotor);
 			TimerDelaymS(CMNDTIME);
-			dbgSerial.print("Alt HBXLEDI: "); dbgSerial.println(axis[AltMotor].HBXLEDI);
+//			dbgSerial.print("Alt HBXLEDI: "); dbgSerial.println(axis[AltMotor].HBXLEDI);
 			if ((axis[AltMotor].HBXLEDI != 0) && (axis[AltMotor].HBXLEDI != 0xFF))
 				PAlt = true;
 		}
@@ -489,23 +527,16 @@ void WaitForMotors(void) {
 			HBXMotorReset(AzMotor);
 		if (!PAlt)
 			HBXMotorReset(AltMotor);
-		
-		// Wait ~.5s between loops
-		TimerDelaymS(MOTORDETECT);
-		// Reset Clocks to high
-		digitalWrite(HCL1, HIGH);
-		digitalWrite(HCL2, HIGH);
-		TimerDelaymS(CMNDTIME);
   } while ((!PAz) || (!PAlt));
 }
   
-void AzInitialise(void) {
+void AzInitialise(unsigned char scope) {
 // Telescope specific
 // telescope steps
-  axis[AzMotor].Vanes = ratio[telescope][AzMotor-1].Vanes; 
-  axis[AzMotor].GbxRatio = ratio[telescope][AzMotor-1].GbxRatio; 
-  axis[AzMotor].XferRatio = ratio[telescope][AzMotor-1].XferRatio; 
-  axis[AzMotor].WormTeeth = ratio[telescope][AzMotor-1].WormTeeth;
+  axis[AzMotor].Vanes = ratio[scope][AzMotor-1].Vanes; 
+  axis[AzMotor].GbxRatio = ratio[scope][AzMotor-1].GbxRatio; 
+  axis[AzMotor].XferRatio = ratio[scope][AzMotor-1].XferRatio; 
+  axis[AzMotor].WormTeeth = ratio[scope][AzMotor-1].WormTeeth;
 // EQMOD values
   axis[AzMotor].aVALUE = axis[AzMotor].Vanes * (float)4 * axis[AzMotor].GbxRatio * axis[AzMotor].XferRatio * axis[AzMotor].WormTeeth;
   axis[AzMotor].MeadeRatio = axis[AzMotor].aVALUE / ArcSecs360;   // Distance for one arcsec
@@ -515,13 +546,12 @@ void AzInitialise(void) {
   axis[AzMotor].LUNARRATE = axis[AzMotor].SIDEREALRATE * LUNARSECS / SIDEREALSECS;
   axis[AzMotor].DEGREERATE1 = axis[AzMotor].SIDEREALRATE * ETXSlew7;
   axis[AzMotor].PEC = axis[AzMotor].aVALUE / axis[AzMotor].WormTeeth;
-
 // ETX
   axis[AzMotor].HBXP1 = 0x00;             
   axis[AzMotor].HBXP2 = 0x00;
   axis[AzMotor].HBXP3 = 0x00;
   axis[AzMotor].HBXP4 = 0x00; 
-  axis[AzMotor].Position = ETX_AzCENTRE;    // ETX RA initially at 0 hours
+  axis[AzMotor].Position = ETX_CENTRE;														// ETX RA initially at 0 hours
   axis[AzMotor].OneDegree = axis[AzMotor].aVALUE / (float)360;    // Distance for one degree
   axis[AzMotor].Target = axis[AzMotor].Position;
   axis[AzMotor].DirnSpeed = 0x000;
@@ -530,13 +560,13 @@ void AzInitialise(void) {
   axis[AzMotor].ETXMotorState = ETXCheckStartup;
 }
 
-void AltInitialise(void) {
+void AltInitialise(unsigned char scope) {
 // Telescope specific
 // telescope steps
-  axis[AltMotor].Vanes = ratio[telescope][AltMotor-1].Vanes; 
-  axis[AltMotor].GbxRatio = ratio[telescope][AltMotor-1].GbxRatio; 
-  axis[AltMotor].XferRatio = ratio[telescope][AltMotor-1].XferRatio; 
-  axis[AltMotor].WormTeeth = ratio[telescope][AltMotor-1].WormTeeth;
+  axis[AltMotor].Vanes = ratio[scope][AltMotor-1].Vanes; 
+  axis[AltMotor].GbxRatio = ratio[scope][AltMotor-1].GbxRatio; 
+  axis[AltMotor].XferRatio = ratio[scope][AltMotor-1].XferRatio; 
+  axis[AltMotor].WormTeeth = ratio[scope][AltMotor-1].WormTeeth;
 // EQMOD values  
   axis[AltMotor].aVALUE = axis[AltMotor].Vanes * (float)4 * axis[AltMotor].GbxRatio * axis[AltMotor].XferRatio * axis[AltMotor].WormTeeth;
   axis[AltMotor].MeadeRatio = axis[AltMotor].aVALUE / ArcSecs360;   // Distance for one arcsec
@@ -546,14 +576,13 @@ void AltInitialise(void) {
   axis[AltMotor].LUNARRATE = axis[AltMotor].SIDEREALRATE * LUNARSECS / SIDEREALSECS;
   axis[AltMotor].DEGREERATE1 = axis[AltMotor].SIDEREALRATE * ETXSlew7;
   axis[AltMotor].PEC = axis[AltMotor].aVALUE / axis[AltMotor].WormTeeth;
-  
 // ETX
   axis[AltMotor].HBXP1 = 0x00;             
   axis[AltMotor].HBXP2 = 0x00;
   axis[AltMotor].HBXP3 = 0x00;
   axis[AltMotor].HBXP4 = 0x00;
-  axis[AltMotor].Position = ETX_AltCENTRE + (axis[AltMotor].aVALUE >> 2);  // Initially at -90 degrees
-  axis[AltMotor].OneDegree = axis[AltMotor].aVALUE / (float)360;    // Distance for one degree
+  axis[AltMotor].Position = ETX_CENTRE - (axis[AltMotor].aVALUE >> 2);			// Initially at -90 degrees
+  axis[AltMotor].OneDegree = axis[AltMotor].aVALUE / (float)360;						// Distance for one degree
   axis[AltMotor].Target = axis[AltMotor].Position;
   axis[AltMotor].DirnSpeed = 0x000;
   axis[AltMotor].ETXMotorStatus = MOVESLEW;
@@ -587,7 +616,7 @@ void PrintHbxValues(unsigned char Motor) {
   dbgSerial.println("");
 }
 
-void PrintRatioValues(unsigned char telescope) {
+void PrintRatioValues(unsigned char scope) {
   int j;
   float r;
     for (j = 0; j < 2; j++) {
@@ -595,11 +624,11 @@ void PrintRatioValues(unsigned char telescope) {
         dbgSerial.print("AzMotor:  ");
       else 
         dbgSerial.print("AltMotor: ");
-      dbgSerial.print("Vanes "); dbgSerial.print(ratio[telescope][j].Vanes); 
-      dbgSerial.print(", GbxRatio "); dbgSerial.print(ratio[telescope][j].GbxRatio,4); 
-      dbgSerial.print(", XferRatio "); dbgSerial.print(ratio[telescope][j].XferRatio,4); 
-      dbgSerial.print(", WormTeeth "); dbgSerial.print(ratio[telescope][j].WormTeeth);
-      r = (ratio[telescope][j].Vanes * (float) 4 * ratio[telescope][j].GbxRatio * ratio[telescope][j].XferRatio * ratio[telescope][j].WormTeeth) / (float) 1296000;
+      dbgSerial.print("Vanes "); dbgSerial.print(ratio[scope][j].Vanes); 
+      dbgSerial.print(", GbxRatio "); dbgSerial.print(ratio[scope][j].GbxRatio,4); 
+      dbgSerial.print(", XferRatio "); dbgSerial.print(ratio[scope][j].XferRatio,4); 
+      dbgSerial.print(", WormTeeth "); dbgSerial.print(ratio[scope][j].WormTeeth);
+      r = (ratio[scope][j].Vanes * (float) 4 * ratio[scope][j].GbxRatio * ratio[scope][j].XferRatio * ratio[scope][j].WormTeeth) / (float) 1296000;
       dbgSerial.print(", MeadeRatio "); dbgSerial.println(r,6);      
     }
 }

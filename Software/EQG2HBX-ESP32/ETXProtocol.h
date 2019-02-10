@@ -1,16 +1,14 @@
 /*
  * Copyright 2017, 2018 John Archbold
 */
-#include <Arduino.h>
 
 /********************************************************
   EQG Protocol function definitions
   =================================
  *********************************************************/
-#ifndef ETXProtocol
-#define ETXProtocol
+#pragma once
 
-#define MotorAz		      0x01        // Pin3 on HBX interface
+#define MotorAz		      0x01        // Pin7 on HBX interface
 #define MotorAlt	      0x02        // Pin5 on HBX interface
 
 #define AzMotor         MotorAz
@@ -37,7 +35,7 @@
 #define	GetStatus				0x08		// Input "16.8.1" 	ticks.pwm.error
 #define	GetLEDI					0x09		// Input "8"		    LED current
 #define	GetMotorType		0x0B		// Input "8" 		    Motor type
-#define	ResetH2X				0xE4		// None
+#define	SleepHBX				0xE4		// None
 
 #define OffsetMax       0x0020        // Maximum for a SetOffset command
 // ETX State Machine
@@ -52,16 +50,11 @@
 #define ETXStopMotor      8
 #define ETXMotorEnd       9
 
-#define EEPROMAzLEDI    0x01					// EEPROM Storage
-#define EEPROMAltLEDI   0x02
-#define EEPROMMotor     0x03					// MOTOR TYPE
-
 const float   ETX60PERIOD     = 152.587891;		// (1/6.5536mS)
 
-#define ETX_AzCENTRE      0x00800000			// HA
-#define ETX_AltCENTRE     0x00800000			// DEC
+const unsigned long		ETX_CENTRE = 0x00800000;			// RA, DEC;
 
-const float   MeadeSidereal   = 6460.0900;    // Refer Andrew Johansen
+const float   MeadeSidereal   = 6460.0900;    // Refer Andrew Johansen - Roboscope
 const float   SiderealArcSecs = 15.041069;    // Sidereal arcsecs/sec
 const float   ArcSecs360      = 1296000;      // Arcsecs / 360
 
@@ -78,10 +71,6 @@ const float   ArcSecs360      = 1296000;      // Arcsecs / 360
 
 #define ETXSLOWPOSN     0x00000800      // Point at which to start slowdown
 
-#define H2X_INPUTPU     INPUT_PULLUP  // Set pin data input mode
-#define H2X_INPUT       INPUT         // Set pin data input mode
-#define H2X_OUTPUT		  OUTPUT				// Set pin data output
-
 bool HBXGetStatus(unsigned char);
 
 bool HBXSetMotorState(unsigned char);
@@ -90,7 +79,4 @@ bool HBXUpdatePosn(void);
 bool HBXStartMotor(unsigned char);
 bool HBXStopMotor(unsigned char);
 void PositionPoll(unsigned char);
-
-
-#endif
 

@@ -2,58 +2,35 @@
  * Copyright 2017, 2018 John Archbold
 */
 
-#include <Arduino.h>
 /********************************************************
   EQG2HBX program definitions
   ===========================
  *********************************************************/
  
-#ifndef EQG2HBX
-#define EQG2HBX
+#pragma once
+
+String EQ2HBX_Version = "EQG2HBX V1.04";
 
 // Time related libararies
 #include <Ticker.h>
-#include <TimeLord.h>             //https://github.com/probonopd/TimeLord
+#include <TimeLord.h>								//https://github.com/probonopd/TimeLord
 //#include <TimeLib.h>              //https://github.com/PaulStoffregen/Time
 //#include <TimeAlarms.h>           //https://github.com/PaulStoffregen/TimeAlarms
-
-
-// Pin definitions for LED indicators
-// ==================================
-#ifdef m2560
-#define AzLED           7           // Mega2560 D7
-#define AltLED          6           // Mega2560 D6
-#endif
-#ifdef  mESP32
-#define AzLED           22
-#define AltLED          21
-#endif
-
-// Jumpers to run test
-// ==============================
-#ifdef m2560
-#define TESTHBX         9           // Mega2560 D2
-#endif
-#ifdef  ESP32
-#define TESTHBX         13       // GPI35
-#endif
-
-// Pin definitions for ESP_NOW interface
-// =====================================
-
-#ifdef  mESP32
-#define PROTOCOL				32       // GPIO32
-#define MODE						33       // GPIO33
-#define SERIAL					14       // GPI34
-#endif
+#include <Preferences.h>
 
 /************************************************************** 
  *  Common variables
  **************************************************************/
 Preferences preferences;
 unsigned long DelayTimer;         // Delay timer
-unsigned long StatusTimer;        // H2X delay timer
 unsigned long StatusTime;         // H2X interval time
+
+unsigned long StatusTimer;        // H2X status delay timer
+unsigned long StateTimer;					// H2X state delay timer
+bool					StateSelect;
+bool					StatusSelect;
+int						StatusCount;
+
 Ticker AlarmDebugPrint;
 Ticker AlarmCheckETX;
 
@@ -136,6 +113,7 @@ typedef struct {
   unsigned long DirnSpeed;          // Speed, Direction for Motor to move
            char HBXGuide;           // Guide speed
            char HBXSnapPort;        // Snap port
+					 char	LEDValue;						// Polar LED brightness
            char ETXSpeedCommand;    // Current ETX Speed command
            long Speed;              // Move speed
            long TargetSpeed;        // Target Move speed
@@ -184,31 +162,33 @@ typedef struct {
   float         GbxRatio;           // GearBox Ratio
   float         XferRatio;          // Gearbox Transfer Ratio (usually 1)
   unsigned long WormTeeth;          // Number of Worm teeth
+	char					Telescope[16];				// name of scope
 } axis_values;
 
-unsigned char telescope = 0;        // Default telescope (ETX60)
+unsigned char telescope = 0;        // Default telescope	(ETX60)
+unsigned char protocol = 0;					// Default protocol		(UDP)
+unsigned char station = 0;					// Default station		(AP)
+char scope[16] = "ETX60";
 
-axis_values ratio[16][2] =                             // 16 scopes, Az, Alt
+axis_values ratio[16][2] =																	// 16 scopes, Az, Alt
   {
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{256, 50, 1, 350}, {256, 50, 1, 350}},                 // LX200
-    {{500, 36, 1, 225}, {500, 36, 1, 225}},                 // LX850
-    {{256, 50, 1, 180}, {256, 50, 1, 180}},                 // LX200/400/500
+    {{36, 91.1458333, 1, 94, "ETX60"}, {36, 157.5, 1, 58, "ETX60"}},          // ETX60/70/80
+		{{36, 91.1458333, 1, 94, "ETX70"}, {36, 157.5, 1, 58, "ETX70"}},          // ETX60/70/80
+		{{36, 91.1458333, 1, 94, "ETX80"}, {36, 157.5, 1, 58, "ETX80"}},          // ETX60/70/80
+		{{108, 50, 1, 144, "LXD55"}, {108, 50, 1, 144, "LXD55"}},                 // LXD55/75, LX70-GTS
+		{{108, 50, 1, 144, "LXD75"}, {108, 50, 1, 144, "LXD75"}},                 // LXD55/75, LX70-GTS
+		{{108, 50, 1, 144, "LXD70"}, {108, 50, 1, 144, "LXD70"}},                 // LXD55/75, LX70-GTS
+		{{108, 53.5859375, 1, 154, "LX90"}, {108, 53.5859375, 1, 154, "LX90"}},		// LX90, LT, LX80AltAz
+		{{108, 53.5859375, 1, 154, "LT"}, {108, 53.5859375, 1, 154, "LT"}},				// LX90, LT, LX80AltAz
+		{{108, 53.5859375, 1, 154, "LX80"}, {108, 53.5859375, 1, 154, "LX80"}},		// LX90, LT, LX80AltAz
+		{{256, 50, 1, 350, "LX200"}, {256, 50, 1, 350, "LX200"}},                 // LX200
+    {{500, 36, 1, 225, "LX850"}, {500, 36, 1, 225, "LX850"}},                 // LX850
+    {{256, 50, 1, 180, "LX400"}, {256, 50, 1, 180, "LX400"}},                 // LX400/500
+		{{36, 205.3330000, 1, 144, "DSEXT"}, {36, 205.3330000, 1, 144, "DSEXT"}}, // DS external
+		{{36, 410.6660000, 1, 100, "DHEXT"}, {36, 157.5, 1, 58, "DHEXT"}},        // DH external/114EQs/4504s  
 
-    {{108, 53.5859375, 1, 154}, {108, 53.5859375, 1, 154}}, // LX90, LT, LX80AltAz
-    {{108, 50, 1, 144}, {108, 50, 1, 144}},                 // LXD55/75, LX70-GTS
-    {{36, 205.3330000, 1, 60}, {36, 205.3330000, 1, 60}},   // ETX-xxx, DS-xxx
-    {{36, 91.1458333, 1, 83}, {36, 144.7362076, 1, 66}},    // ??
-
-    {{36, 205.3330000, 1, 144}, {36, 205.3330000, 1, 144}}, // DS external
-    {{36, 410.6660000, 1, 100}, {36, 157.5, 1, 58}},        // DH external/114EQs/4504s  
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}}           // ETX60/70/80
+		{{36, 205.3330000, 1, 60, "ETXnn"}, {36, 205.3330000, 1, 60, "ETXnn"}},   // ETX-xxx, DS-xxx
+		{{36, 91.1458333, 1, 83, "ETX??"}, {36, 144.7362076, 1, 66, "ETX??"}}    // ??
   };
 
 unsigned long PreviousTime;              // Used in HBX Monitor, Testing
@@ -216,7 +196,3 @@ unsigned long PreviousTime;              // Used in HBX Monitor, Testing
 // Testing only
 unsigned char TestCount;
 unsigned long TestLoopTime;
-
-#endif
-
-

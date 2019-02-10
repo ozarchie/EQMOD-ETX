@@ -1,21 +1,22 @@
+
+
 /*
  * Copyright 2017, 2018 John Archbold
 */
-
 
 /********************************************************
   EQG Serial WiFi
   ===============
  *********************************************************/
-#ifndef HBXWiFiServer
-#define HBXWiFiServer
+#pragma once
 
-#include <Arduino.h>
 #include <WiFi.h>
-#include <AsyncUdp.h>
+#include <AsyncUDP.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <Update.h>
 #include <esp_now.h>
+#include <ESPmDNS.h>
 
 /**************************************************************
  *	WiFi communications buffers and pointers
@@ -26,18 +27,26 @@ uint8_t smac[] = { 0x5C, 0xCF, 0x7F, 0x88, 0x88, 0x88 };		// Hopefully :) Unique
 uint8_t mmac[] = { 0x5C, 0xCF, 0x7F, 0x00, 0x00, 0x00 };		// Master mac address
 const uint8_t WIFI_CHANNEL = 4;
 
-// char ssid[64] = "EQMODWiFi";
-// char pass[64] = "CShillit0";
-String  ssid;
-String  pass;
+String  ssid;		// char ssid[64] = "EQMODWiFi";
+String  pass;		// char pass[64] = "CShillit0";
+
+const char* http_username = "admin";
+const char* http_password = "eqmod";
+//flag to use from web update to reboot the ESP
+bool shouldReboot = false;
+bool loginValid = false;
 
 IPAddress ip(192, 168, 88, 1);
 IPAddress netmask(255, 255, 255, 0);
 
 /**************************************************************
  *	WiFi WebServer
+ *	Only invoked in STA mode
 */
+
 AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");							// access at ws://[esp ip]/ws
+AsyncEventSource events("/events");		// event source (Server-Sent events)
 
 /**************************************************************
  *	WiFi ESP_NOW
@@ -105,6 +114,3 @@ void sendData(const esp_now_peer_info_t* );
 void sendCallBack(const uint8_t* , esp_now_send_status_t );
 void putRxDataIntoMountInputBuffer(void);
 void getTxDataFromMountOutputBuffer(void);
-
-#endif	// HBXWiFiServer
-
