@@ -8,7 +8,7 @@ This project describes a possible arduino interface between the ASCOM-EQMOD soft
 
 The design is now published on EasyEDA:  
 
-https://easyeda.com/jmarchbold/eqg2hbx  
+https://easyeda.com/jmarchbold/eqg2hbxv12
 
 
 ## Notices
