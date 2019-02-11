@@ -1,5 +1,11 @@
 THIS CODE IS NOT FULLY TESTED.  
-ONLY USE IT IF YOU WANT TO HELP IN THE DEBUG PROCESS.
+ONLY USE IT IF YOU WANT TO HELP IN THE DEBUG PROCESS.  
+If you want to use EQMOD, you need to build [EQMOD-WiFi](https://github.com/ozarchie/EQMOD-WiFi).  
+EQMOD does not support WiFi communications natively.
+It needs a Serial<->WiFi bridge.  
+If you are OK with SynScan, see below.
+
+
 <h1>Installation</h1>
 <h2>ESP32</h2>
 <hr />
