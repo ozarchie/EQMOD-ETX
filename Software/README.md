@@ -14,7 +14,7 @@ If you are OK with SynScan, see below.
 <li>https://github.com/ozarchie/EQMOD-ETX/tree/master/Software</li>
 <li>Make sure you have the espressif ESP32 system and libraries installed.  
   
-  [ESP32](https://github.com/espressif/arduino-esp32/blob/master/docs/arduino-ide/windows.md)</li>
+  [Download ESP32](https://github.com/espressif/arduino-esp32/blob/master/docs/arduino-ide/windows.md)</li>
 
 <li>Compile and upload to your hardware
 
