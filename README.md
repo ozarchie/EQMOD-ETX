@@ -10,6 +10,9 @@ The design is now published on EasyEDA:
 
 https://easyeda.com/jmarchbold/eqg2hbxv12
 
+You can prototype this using standard Arduino modules, or simply order boards from JLPCB. I have some spare units, but the postage is usually higher than ordering them direct!
+If you use arduino 3.3v<->5v level translators, the level translator will need to be modified for the different resistances required. Standard level translators use 10k resistors. The ETX60 needs these changed to 47k or 56k. I am not sure about other telescopes, but the early ETX60 has all data lines joined (which effectively connects these resistors in parallel). As a result, the pullup is too strong and the communications fail.
+
 
 ## Notices
 Information in this document was collected from multiple sources on the Weasner site. It is a summary of those documents and retains the original warnings/copyrights where they existed.  
