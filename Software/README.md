@@ -12,6 +12,11 @@ If you are OK with SynScan, see below.
 <ol>
 <h3>Download the github image and configure</h3>
 <li>https://github.com/ozarchie/EQMOD-ETX/tree/master/Software</li>
+<li>Make sure you have the espressif ESP32 system and libraries installed.  
+  
+  [ESP32](https://github.com/espressif/arduino-esp32/blob/master/docs/arduino-ide/windows.md)</li>
+
+<li>Compile and upload to your hardware
 
 <li>Download and install Synscan (Windows/Android) to drive the scope
 
@@ -23,7 +28,7 @@ Download and install ASCOM driver for Synscan (Windows) to interface to CdC etc
 
 </li>		
 
-<li>Search and join WiFi network EQMODWiFi, Password is CShillit0</li>
+<li>Search for and join WiFi network EQMODWiFi, Password is CShillit0</li>
 <li>Start SynScan and press Connect</li>
 <li>Select EQ6</li>
 
