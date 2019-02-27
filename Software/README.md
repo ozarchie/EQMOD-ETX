@@ -19,15 +19,11 @@ ONLY USE IT IF YOU WANT TO HELP IN THE DEBUG PROCESS.
 
 <h2>SYNSCAN</h2>
 <h3>Run on Windows - ASCOM only supports Windows</h3>
-<li>Download and install Synscan (Windows/Android) to control the telescope</li>  
-  
+<li>Download and install Synscan Appn (Windows)</li>
 [Download SynScan](http://skywatcher.com/download/software/synscan-app/ "Title")  
-<li>Download and install ASCOM driver for Synscan (Windows) to interface to CdC (or other ASCOM-based program)</li>  
-
-[Download SynScan ASCOM](http://skywatcher.com/download/software/ascom-driver/ "Title")  
-
+<li>Download and install ASCOM driver for Synscan (Windows) to interface to CdC (or other ASCOM-based program)</li>
+[Download SynScan ASCOM](http://skywatcher.com/download/software/ascom-driver/ "Title")
 <li>Search and join WiFi network EQMODWiFi, Password is CShillit0</li>
-
 <li>Start SynScan and press Connect</li>
 <li>Select EQ6</li>
 <li>Start CdC</li>
@@ -36,10 +32,10 @@ ONLY USE IT IF YOU WANT TO HELP IN THE DEBUG PROCESS.
 <li>Telescope>ConnectTelescope>Connect</li>  
 
 <h3>Run using phone or tablet App</h3>
-<li>Download and install Synscan (iOS/Android) to control the telescope</li>  
-  
-[Download SynScan](http://skywatcher.com/download/software/synscan-app/ "Title") 
-
+<li>Download and install Synscan Appn (iOS/Android)</li>
+[Download SynScan](http://skywatcher.com/download/software/synscan-app/ "Title")
+<li>Search and join WiFi network EQMODWiFi, Password is CShillit0</li>
+<li>Start SynScan and press Connect</li>
 <h2>EQMOD</h2>
 EQMOD does not support WiFi communications natively.  
 
@@ -50,3 +46,6 @@ If you want to use EQMOD, you need to build the
  
     interface and code.  
 </li>
+<li>Plug the EQMOD-WiFi device into a USB port</li>
+<li>Configure CdC/EQMOD to use the USB serial port associated with the EQMOD-WiFi</li>
+<li>The EQMOD-WiFi and EQMOD-ETX will handle the WiFi communications using ESP-NOW</li>
