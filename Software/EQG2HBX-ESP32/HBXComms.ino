@@ -1,3 +1,4 @@
+/**@file*/
 /*
  * Copyright 2017, 2018 John Archbold
 */
@@ -11,8 +12,9 @@
  // --------------------
 void HBXMotorReset(unsigned char Motor)
 {
-	int i;
 	/*
+	int i;
+
 	// Write LOW
 	HDATalk();
 	digitalWrite(HDA1, LOW);
@@ -68,7 +70,6 @@ void HBXMotorReset(unsigned char Motor)
 // ------------------
 bool HBXSendCommand(unsigned char Command, unsigned char Motor) {
 
-	unsigned long i;
 	if (Command != GetStatus){
 		dbgSerial.println(""); dbgSerial.print("+++ "); dbgSerial.print(Motor);
 	}
@@ -138,7 +139,7 @@ bool HBXStartSequence(unsigned char Motor) {
 // ----------------------
 void HBXSendByte(unsigned char databyte, unsigned char Motor) {
 
-	unsigned char b, mask;
+	unsigned char mask;
 	if (axis[Motor].Command != GetStatus) {
 		dbgSerial.print("-> "); dbgSerial.print(databyte, HEX);
 	}
@@ -187,8 +188,6 @@ void HBXSend3Bytes(unsigned char Motor) {
 // ----------------------
 unsigned char HBXGetByte(unsigned char Motor) {
 
-	unsigned long i;
-	unsigned char b;
 // HDA as input  
   HDAListen();                    
   axis[Motor].HBXBitCount = 8;	
@@ -219,7 +218,6 @@ unsigned char HBXGetByte(unsigned char Motor) {
 // HBX Get the status bytes (25 bits)
 // ----------------------------------
 void HBXGet3Bytes(unsigned char Motor) {
-  unsigned char b;
   
 	axis[Motor].HBXP1 = HBXGetByte(Motor);
   TimerDelayuS(HBXBitTime);

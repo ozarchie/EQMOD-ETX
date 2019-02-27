@@ -1,3 +1,4 @@
+/**@file*/
 /*
  * Copyright 2017, 2018 John Archbold
 */
@@ -9,7 +10,6 @@
 
 bool ETXState(unsigned char Motor) {
   long  distance;
-  int   s1;
   
   switch(axis[Motor].ETXMotorState) {
 
@@ -618,7 +618,6 @@ void PrintHbxValues(unsigned char Motor) {
 
 void PrintRatioValues(unsigned char scope) {
   int j;
-  float r;
     for (j = 0; j < 2; j++) {
       if (j == 0) 
         dbgSerial.print("AzMotor:  ");
@@ -628,8 +627,96 @@ void PrintRatioValues(unsigned char scope) {
       dbgSerial.print(", GbxRatio "); dbgSerial.print(ratio[scope][j].GbxRatio,4); 
       dbgSerial.print(", XferRatio "); dbgSerial.print(ratio[scope][j].XferRatio,4); 
       dbgSerial.print(", WormTeeth "); dbgSerial.print(ratio[scope][j].WormTeeth);
-      r = (ratio[scope][j].Vanes * (float) 4 * ratio[scope][j].GbxRatio * ratio[scope][j].XferRatio * ratio[scope][j].WormTeeth) / (float) 1296000;
-      dbgSerial.print(", MeadeRatio "); dbgSerial.println(r,6);      
+			float r = (ratio[scope][j].Vanes * (float) 4 * ratio[scope][j].GbxRatio * ratio[scope][j].XferRatio * ratio[scope][j].WormTeeth) / (float) 1296000;
+      dbgSerial.print(", MeadeRatio "); dbgSerial.println(r, 6);      
     }
 }
+
+void HBXPrintStatus(unsigned char Motor) {
+	axis[Motor].HBXCount = 0;
+	if ((axis[Motor].Command != GetStatus) || (axis[Motor].HBXP1 | axis[Motor].HBXP2 | axis[Motor].HBXP3 | axis[Motor].HBXP4) || axis[Motor].PrintStatus0) {
+
+		/*		dbgSerial.println("");
+				dbgSerial.print("Motor: ");
+				dbgSerial.print(Motor);
+				dbgSerial.print(", Cmnd: ");
+				dbgSerial.print(axis[Motor].Command, HEX);
+				dbgSerial.print(" -  ");
+		 */
+		switch (axis[Motor].Command) {
+		case SpeedChnge:
+			//            dbgSerial.print("SpeedChnge ");
+			axis[Motor].HBXCount = 3;
+			break;
+		case SpeedStart:
+			//            dbgSerial.print("SpeedStart ");
+			axis[Motor].HBXCount = 3;
+			break;
+		case SetOffset:
+			//            dbgSerial.print("SetOffset ");
+			axis[Motor].HBXCount = 4;
+			break;
+		case SetLEDI:
+			//            dbgSerial.print("SetLEDI ");
+			axis[Motor].HBXCount = 1;
+			break;
+		case CalibrateLED:
+			//            dbgSerial.print("CalibrateLED ");
+			break;
+		case Stop:
+			//            dbgSerial.print("Stop ");
+			break;
+		case SlewReverse:
+			//            dbgSerial.print("SlewReverse ");
+			break;
+		case SlewForward:
+			//            dbgSerial.print("SlewForward ");
+			break;
+		case GetStatus:
+			//            dbgSerial.print("GetStatus ");
+			axis[Motor].HBXCount = 4;
+			break;
+		case GetLEDI:
+			//            dbgSerial.print("GetLEDI ");
+			axis[Motor].HBXCount = 1;
+			break;
+		case GetMotorType:
+			//            dbgSerial.print("GetMotorType ");
+			axis[Motor].HBXP1 = axis[Motor].MotorType;
+			axis[Motor].HBXCount = 1;
+			break;
+		case SleepHBX:
+			//            dbgSerial.print("SleepHBX ");
+			break;
+		default:
+			dbgSerial.print("UNKNOWN ");
+			break;
+		}
+
+		/*
+				if (axis[Motor].HBXCount != 0) {
+					dbgSerial.print(", Data: ");
+					dbgSerial.print(axis[Motor].HBXP1, HEX);
+					if (axis[Motor].HBXCount >= 2)  dbgSerial.print(", ");
+					axis[Motor].HBXCount -= 1;
+				}
+				if (axis[Motor].HBXCount != 0) {
+					dbgSerial.print(axis[Motor].HBXP2, HEX);
+					if (axis[Motor].HBXCount >= 2)  dbgSerial.print(", ");
+					axis[Motor].HBXCount -= 1;
+				}
+				if (axis[Motor].HBXCount != 0) {
+					dbgSerial.print(axis[Motor].HBXP3, HEX);
+					if (axis[Motor].HBXCount >= 2)  dbgSerial.print(", ");
+					axis[Motor].HBXCount -= 1;
+				}
+				if (axis[Motor].HBXCount > 0) {
+					dbgSerial.print(axis[Motor].HBXP4, HEX);
+					axis[Motor].HBXCount -= 1;
+				}
+				dbgSerial.println("");
+		*/
+	}
+}
+
 

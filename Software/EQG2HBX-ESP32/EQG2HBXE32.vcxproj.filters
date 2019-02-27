@@ -39,6 +39,9 @@
     <ClInclude Include="Hardware.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="__vm\.EQG2HBX-ESP32.vsarduino.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="EQG2HBXE32.ino" />
@@ -47,8 +50,12 @@
     <None Include="HBXComms.ino" />
     <None Include="HBXFileSystem.ino" />
     <None Include="HBXWiFiServer.ino" />
-    <None Include="HBXzTest.ino" />
-    <None Include="HBXOTA.ino" />
+    <None Include="data\www\update.htm">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="data\www\settings.htm">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Image Include="data\eq.gif">

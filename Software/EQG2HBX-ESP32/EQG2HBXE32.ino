@@ -1,3 +1,4 @@
+/**@file*/
 /*
     Name:       EQG2HBXE32.ino
     Created:		2018-09-01 10:07:17 AM
@@ -8,8 +9,9 @@
 
 // Define User Types below here or use a .h file
 //
-#include <Preferences.h>
 #include <dummy.h>
+#include <Preferences.h>
+//#include <BluetoothSerial.h>
 #include "Hardware.h"
 #include "EQG2HBX.h"
 #include "EQGProtocol.h"
@@ -78,8 +80,10 @@ void setup()
 
 #ifdef mESP32
 	dbgSerial.begin(115200);											// debug
-	EQGSerial.begin(9600, SERIAL_8N1, 18, 19);    // EQG via serial or WiFi
+	EQGSerial.begin(9600, SERIAL_8N1, 18, 19);    // EQG via serial, bluetooth or WiFi
+	// EQGBluetooth.begin("EQ6Blue");
 	delay(10);
+	
 #endif
 
 	dbgSerial.println(EQ2HBX_Version);
@@ -104,18 +108,6 @@ void setup()
 
 	// Initialize EQG communications
 
-	// **************************
-	// Check for HBX Testing Mode
-	// ==========================
-/*
-dbgSerial.print("digitalRead(TESTHBX)  : ");
-	dbgSerial.println(digitalRead(TESTHBX));
-	while (digitalRead(TESTHBX) == 0) {   // Check if test jumper installed
-		dbgSerial.print("digitalRead(TESTHBX)  : ");
-		dbgSerial.println(digitalRead(TESTHBX));
-		HBXTestLoop();                      // Execute test code until jumper removed
-	};
-*/
 	dbgSerial.println("HBX Initialization");
 
 	// Read Motor Type to determine telescope type

@@ -1,3 +1,4 @@
+/**@file*/
 /*
  * Copyright 2017, 2018 John Archbold
 */
@@ -23,8 +24,6 @@ void HBXTestLoop(void) {
   
 void HBXTest(void)
 {	
-  int i;
-
   // Initialize HBX communications as outputs
   // It will use I2C-like communications
   dbgSerial.println("**********************************************");
@@ -353,17 +352,18 @@ void SendData(unsigned int duration) {
     dbgSerial.println(axis[AltMotor].Increment);
 }
 
+/*
 void HBXPrintStatus(unsigned char Motor) {
   axis[Motor].HBXCount = 0;
   if ((axis[Motor].Command != GetStatus) || (axis[Motor].HBXP1 | axis[Motor].HBXP2 | axis[Motor].HBXP3 | axis[Motor].HBXP4) || axis[Motor].PrintStatus0 ) {
 
-/*		dbgSerial.println(""); 
+		dbgSerial.println(""); 
 		dbgSerial.print("Motor: ");
     dbgSerial.print(Motor);
     dbgSerial.print(", Cmnd: ");
     dbgSerial.print(axis[Motor].Command, HEX);
     dbgSerial.print(" -  ");
- */ 
+ 
       switch (axis[Motor].Command) {
         case SpeedChnge:
 //            dbgSerial.print("SpeedChnge ");
@@ -413,31 +413,33 @@ void HBXPrintStatus(unsigned char Motor) {
             dbgSerial.print("UNKNOWN ");
             break;
       }
-      
-    if (axis[Motor].HBXCount) {
-//      dbgSerial.print(", Data: ");
-//      dbgSerial.print(axis[Motor].HBXP1, HEX);
-      if (axis[Motor].HBXCount > 1)  dbgSerial.print(", ");
+
+
+    if (axis[Motor].HBXCount != 0) {
+      dbgSerial.print(", Data: ");
+      dbgSerial.print(axis[Motor].HBXP1, HEX);
+      if (axis[Motor].HBXCount >= 2)  dbgSerial.print(", ");
       axis[Motor].HBXCount -= 1;
     }
-    if (axis[Motor].HBXCount) {
-//      dbgSerial.print(axis[Motor].HBXP2, HEX);
-      if (axis[Motor].HBXCount > 1)  dbgSerial.print(", ");
+    if (axis[Motor].HBXCount != 0) {
+      dbgSerial.print(axis[Motor].HBXP2, HEX);
+      if (axis[Motor].HBXCount >= 2)  dbgSerial.print(", ");
       axis[Motor].HBXCount -= 1;
     }
-    if (axis[Motor].HBXCount) {
-//      dbgSerial.print(axis[Motor].HBXP3, HEX);
-      if (axis[Motor].HBXCount > 1)  dbgSerial.print(", ");
+    if (axis[Motor].HBXCount != 0) {
+      dbgSerial.print(axis[Motor].HBXP3, HEX);
+      if (axis[Motor].HBXCount >= 2)  dbgSerial.print(", ");
       axis[Motor].HBXCount -= 1;
     }
-    if (axis[Motor].HBXCount) {
-//      dbgSerial.print(axis[Motor].HBXP4, HEX);
+    if (axis[Motor].HBXCount > 0) {
+      dbgSerial.print(axis[Motor].HBXP4, HEX);
       axis[Motor].HBXCount -= 1;
     }
-//    dbgSerial.println("");
+    dbgSerial.println("");
+
   }
 }
-
+*/
 bool HBXStop2Motors(void) {
   axis[AzMotor].ETXMotorState = ETXStopMotor;
   ETXState(AzMotor);

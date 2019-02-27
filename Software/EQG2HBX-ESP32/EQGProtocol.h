@@ -7,10 +7,7 @@
   =================================
  *********************************************************/
 
-#include <Arduino.h>
-
-#ifndef EQGProtocol
-#define EQGProtocol
+#pragma once
 
 #define CR      0x0d
 #define LF      0x0a
@@ -19,17 +16,30 @@ float SIDEREALSECS        = 86164.098903691;         // Some astronomical consta
 float SOLARSECS           = 86400;
 float LUNARSECS           = 89309;
 
+#define SKYWATCHER_SIDEREAL_DAY   86164.09053083288
+#define SKYWATCHER_SIDEREAL_SPEED 15.04106864
+#define SKYWATCHER_STELLAR_DAY    86164.098903691
+#define SKYWATCHER_STELLAR_SPEED  15.041067179
 
 #define EQG_CMNDSTART     0x01
 #define EQG_WAITFORCR     0x77
 #define EQG_INTERPRET     0x78
 
 /*
+	tmpMCVersion = Revu24str2long(response + 1);
+	MCVersion = ((tmpMCVersion & 0xFF) << 16) | ((tmpMCVersion & 0xFF00)) | ((tmpMCVersion & 0xFF0000) >> 16);
+	MountCode = MCVersion & 0xFF;
+*/
+
+/*
 //	Get Motor Controller Version 
 //	:e1[0D]
-//	=llhhMM[0D]
-//	===========
-e  0    6  Get Motor Controller Version          // =llhhMM[0D]  MM = mount type,
+//	="llhhMM"[0D]							(6 bytes - hex		encoded)
+//	Revu24str2long = MMhhll		(3 bytes - binary encoded)
+//  MCVersion = llhhMM				(3 bytes - binary encoded)
+//  MountCode = MM						(1 byte  - binary encoded)
+//	=================================================================================
+e  0    6  Get Motor Controller Version          // ="llhhMM"[0D]  MM = mount code,
 																								 //             x00 = "EQ6Pro"
 																								 //             x01 = "HEQ5"
 																								 //             x02 = "EQ5"
@@ -37,6 +47,10 @@ e  0    6  Get Motor Controller Version          // =llhhMM[0D]  MM = mount type
 																								 //             x04 = "EQ8"
 																								 //             x05 = "AZEQ6"
 																								 //             x06 = "AZEQ5"
+																								 //             x80 = "GT"
+																								 //             x81 = "MF"
+																								 //             x82 = "114GT"
+																								 //             x90 = "DOB"
 																								 //             hh.ll = board version    hh=x00..x07 = equatorial
 																								 //                                        =x08..xFF = altaz
 */
@@ -71,6 +85,62 @@ AxisFeatures[Axis1].hasCommonSlewStart = rafeatures & 0x00002000; // supports :J
 AxisFeatures[Axis1].hasHalfCurrentTracking = rafeatures & 0x00004000;
 AxisFeatures[Axis1].hasWifi = rafeatures & 0x00008000;
 */
+// Types
+enum SkywatcherCommand
+{
+	Initialize = 'F',
+	InquireMotorBoardVersion = 'e',
+	InquireGridPerRevolution = 'a',
+	InquireTimerInterruptFreq = 'b',
+	InquireHighSpeedRatio = 'g',
+	InquirePECPeriod = 's',
+	InstantAxisStop = 'L',
+	NotInstantAxisStop = 'K',
+	SetAxisPositionCmd = 'E',
+	GetAxisPosition = 'j',
+	GetAxisStatus = 'f',
+	SetSwitch = 'O',
+	SetMotionMode = 'G',
+	SetGotoTargetIncrement = 'H',
+	SetBreakPointIncrement = 'M',
+	SetGotoTarget = 'S',
+	SetBreakStep = 'U',
+	SetStepPeriod = 'I',
+	StartMotion = 'J',
+	GetStepPeriod = 'D', // See Merlin protocol http://www.papywizard.org/wiki/DevelopGuide
+	ActivateMotor = 'B', // See eq6direct implementation http://pierre.nerzic.free.fr/INDI/
+	SetST4GuideRateCmd = 'P',
+	GetHomePosition = 'd', // Get Home position encoder count (default at startup)
+	SetFeatureCmd = 'W', // EQ8/AZEQ6/AZEQ5 only
+	GetFeatureCmd = 'q', // EQ8/AZEQ6/AZEQ5 only
+	InquireAuxEncoder = 'd', // EQ8/AZEQ6/AZEQ5 only
+	NUMBER_OF_SkywatcherCommand
+};
+
+enum SkywatcherAxis
+{
+	Axis1 = 0, // RA/AZ
+	Axis2 = 1, // DE/ALT
+	NUMBER_OF_SKYWATCHERAXIS
+};
+char AxisCmd[2]{ '1', '2' };
+
+enum SkywatcherDirection
+{
+	BACKWARD = 0,
+	FORWARD = 1
+};
+enum SkywatcherSlewMode
+{
+	SLEW = 0,
+	GOTO = 1
+};
+enum SkywatcherSpeedMode
+{
+	LOWSPEED = 0,
+	HIGHSPEED = 1
+};
+
 typedef struct SkyWatcherFeatures
 {
 	bool inPPECTraining = false;
@@ -122,28 +192,32 @@ enum SkywatcherSetFeatureCmd
 //      4  supports half current tracking          // ref :Wx06....
 //      2  axes slews must start independently     // ie cant use :J3
 //      1  has polar LED
-// D
-// E
-// F
+// D		0000
+// E		0000
+// F		0000
 // EQ6    returns !0
 //								 ABCDEF
 // AZEQ5          =0B6000  at boot
 // AZEQ6          =0B3000
 // EQ8            =076000
-//								EFCDAB
-#define AEQ6				0x003000				// !:J3,  Polar LED
-#define AEQ5				0x003008				// !:J3,  Polar LED, az/eq
-#define AEQ3				0x003000				// !:J3,  Polar LED
-#define AAZEQ5			0x00B008				// !:J3,  Polar LED, WiFi, AZ/EQ
+//								 EFCDAB
+
+// Mount Assets
+//										EFCDAB
+#define AEQ6				0x003000				//			 !:J3, PolarLED   
+#define AEQ5				0x003008				//			 !:J3, PolarLED		; AZ/EQ
+#define AEQ3				0x003000				//			 !:J3, PolarLED		
+#define AAZEQ5			0x00B008				// WiFi, !:J3, PolarLED		; AZ/EQ
+#define AAZEQ6			0x00B008				// WiFi, !:J3, PolarLED		; AZ/EQ
 
 // Motor firmware versions
-#define VEQ6        0x000204    // Pretend EQ6/5
-#define VHEQ5       0x010204    // Pretend HEQ5
-#define VEQ5        0x020204    // Pretend EQ5
-#define VEQ3        0x030301    // Pretend EQ3
-#define VEQ8        0x040301    // Pretend EQ3
-#define VAZEQ6      0x050211		// Pretend AZEQ6
-#define VAZEQ5      0x060301		// Pretend AZEQ5
+#define VEQ6        0x000204    // Pretend EQ6			V 2.04	yyyy.mm.dd
+#define VHEQ5       0x010204    // Pretend HEQ5			V 2.04	yyyy.mm.dd
+#define VEQ5        0x020207    // Pretend EQ5			V 2.07	yyyy.mm.dd
+#define VEQ3        0x030207    // Pretend EQ3			V 2.07	yyyy.mm.dd
+#define VEQ8        0x040211    // Pretend EQ8			V 2.11	2014.11.10
+#define VAZEQ6      0x050211		// Pretend AZEQ6		V 2.11	2014.11.10
+#define VAZEQ5      0x060301		// Pretend AZEQ5		V 3.01	2015.08.10
 
 #define EQGVERSION	VEQ6
 #define EQGASSETS		AEQ6
@@ -205,13 +279,9 @@ void EQGTxHex6(unsigned long);
 // debug
 void putbyte(unsigned char);
 void putbyte(unsigned char);
-void puthexn(unsigned char);
 void puthexb(unsigned char);
 void puthexw(unsigned int);
 void puthexl(unsigned long);
-void putdecn(unsigned char);
 void putdecb(unsigned char);
 void putdecw(unsigned int);
 void putdecl(unsigned long);
-#endif
-

@@ -1,3 +1,4 @@
+/**@file*/
 // HBXSerialServer.ino
 // https://esp-idf.readthedocs.io/en/latest/api-reference/wifi/esp_now.html
 
@@ -72,7 +73,7 @@ void sendCallBack(const uint8_t* mac, esp_now_send_status_t sendStatus) {
 // Put received WiFi (UDP/ESP_NOW) data into the mount input data buffer for processing
 // Data in recvWiFi.text, length recvWiFi.len
 void putRxDataIntoMountInputBuffer(void) {
-  uint8_t TxD, n;
+  uint8_t n;
   n = 0;
 	while (n < recvWiFi.len) {
 		EQGRxBuffer[EQGRxiPtr++] = recvWiFi.text[n];

@@ -5,14 +5,17 @@
 #pragma once
 
 #define mESP32
-#undef	mTEST
 
  // Serial port definitions for HBX interface
  // =========================================
 
 #ifdef mESP32
-#define dbgSerial	Serial
-#define EQGSerial	Serial2
+//BluetoothSerial SerialBT;
+
+#define dbgSerial			Serial
+#define EQGSerial			Serial2
+//#define EQGBluetooth	SerialBT
+
 #endif
 
 // Pin definitions for HBX interface

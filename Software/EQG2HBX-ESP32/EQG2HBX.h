@@ -11,13 +11,6 @@
 
 String EQ2HBX_Version = "EQG2HBX V1.04";
 
-// Time related libararies
-#include <Ticker.h>
-#include <TimeLord.h>								//https://github.com/probonopd/TimeLord
-//#include <TimeLib.h>              //https://github.com/PaulStoffregen/Time
-//#include <TimeAlarms.h>           //https://github.com/PaulStoffregen/TimeAlarms
-#include <Preferences.h>
-
 /************************************************************** 
  *  Common variables
  **************************************************************/
@@ -31,8 +24,8 @@ bool					StateSelect;
 bool					StatusSelect;
 int						StatusCount;
 
-Ticker AlarmDebugPrint;
-Ticker AlarmCheckETX;
+//Ticker AlarmDebugPrint;
+//Ticker AlarmCheckETX;
 
 long          P1;
 long          P2;

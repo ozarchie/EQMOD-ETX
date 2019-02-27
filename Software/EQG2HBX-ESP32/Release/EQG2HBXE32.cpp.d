@@ -128,6 +128,7 @@ C:\Users\Anne\AppData\Local\Temp\VMBuilds\EQG2HBXE32\espressif_esp32doit-devkit-
  C:\Users\John\Documents\Arduino\hardware\espressif\esp32\cores\esp32/Arduino.h \
  C:\Users\John\Documents\Arduino\hardware\espressif\esp32\variants\doitESP32devkitV1/pins_arduino.h \
  C:\Users\John\Documents\Arduino\hardware\espressif\esp32\libraries\Preferences\src/Preferences.h \
+ C:\Users\John\Documents\Arduino\hardware\espressif\esp32\libraries\BluetoothSerial\src/BluetoothSerial.h \
  C:\Users\John\Documents\Arduino\hardware\espressif\esp32\libraries\ESP32\src/dummy.h \
  C:\Users\Anne\AppData\Local\Temp\VMBuilds\EQG2HBXE32\espressif_esp32doit-devkit-v1\Release\Hardware.h \
  C:\Users\Anne\AppData\Local\Temp\VMBuilds\EQG2HBXE32\espressif_esp32doit-devkit-v1\Release\EQG2HBX.h \
@@ -206,5 +207,4 @@ C:\Users\Anne\AppData\Local\Temp\VMBuilds\EQG2HBXE32\espressif_esp32doit-devkit-
  C:\Users\Anne\AppData\Local\Temp\VMBuilds\EQG2HBXE32\espressif_esp32doit-devkit-v1\Release\HBXFileSystem.h \
  C:\Users\John\Documents\Arduino\hardware\espressif\esp32\libraries\EEPROM/EEPROM.h \
  C:\Users\John\Documents\Arduino\hardware\espressif\esp32\libraries\SPIFFS\src/SPIFFS.h \
- C:\Users\John\Documents\Arduino\libraries\ESPAsyncWebServer-master\src/SPIFFSEditor.h \
- C:\Users\John\Documents\Arduino\hardware\espressif\esp32\libraries\ArduinoOTA\src/ArduinoOTA.h
+ C:\Users\John\Documents\Arduino\libraries\ESPAsyncWebServer-master\src/SPIFFSEditor.h

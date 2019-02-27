@@ -1,3 +1,4 @@
+/**@file*/
 /*
  * Copyright 2017, 2018 John Archbold
 */
@@ -664,7 +665,6 @@ void EQGAction(void) {
 				  break;
 
 				case 'I':   // Set motor speed
-        long Speed;
 
 // From EQMOD
 // Multiplier   = EQGSidereal / :I
