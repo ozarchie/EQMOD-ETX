@@ -20,7 +20,8 @@ Information in this document was collected from multiple sources on the Weasner 
 The main information comes from -:
 1. http://www.weasner.com/etx/menu.html    
 2. https://www.pedagogie.ac-aix-marseille.fr/upload/docs/application/pdf/2017-05/dossier_technique_v1.0_simplifie.pdf
-3. Some information assumed from observations of the interactions between the Autostar 494 controller and the DH series motors. The information in this document was not derived via disassembly of the Autostar or motor processor firmware    
+3. http://www.lycee-ferry-versailles.fr/si-new/4_5_programmation/3_tp/DIAGRAMME_ETATS/1_ASTROLAB/Telescope_Dossier_technique.pdf
+4. Some information assumed from observations of the interactions between the Autostar 494 controller and the DH series motors. The information in this document was not derived via disassembly of the Autostar or motor processor firmware    
 
 See information about relevant intellectual property in the original documents   
 
