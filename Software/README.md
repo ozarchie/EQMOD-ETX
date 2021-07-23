@@ -23,7 +23,7 @@ ONLY USE IT IF YOU WANT TO HELP IN THE DEBUG PROCESS.
 [Download SynScan App](http://skywatcher.com/download/software/synscan-app/)  
 <li>Download and install ASCOM driver for Synscan (Windows) to interface to CdC (or other ASCOM-based program)</li>
 [Download SynScan ASCOM](http://skywatcher.com/download/software/ascom-driver/)
-<li>Search and join WiFi network EQMODWiFi, Password is CShillit0</li>
+<li>Search and join WiFi network EQGWiFi, Password is EQG2HBXPcl</li>
 <li>Start SynScan and press Connect</li>
 <li>Select EQ6</li>
 <li>Start CdC</li>
@@ -36,7 +36,7 @@ ONLY USE IT IF YOU WANT TO HELP IN THE DEBUG PROCESS.
 <ul>
 <li>Download and install Synscan Appn (iOS/Android)</li>
 [Download SynScan App](http://skywatcher.com/download/software/synscan-app/)
-<li>Search and join WiFi network EQMODWiFi, Password is CShillit0</li>
+<li>Search and join WiFi network EQGWiFi, Password is EQG2HBXPcl</li>
 <li>Start SynScan and press Connect</li>
 </ul>
 <hr />
