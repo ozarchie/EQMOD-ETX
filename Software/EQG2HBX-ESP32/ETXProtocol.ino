@@ -17,67 +17,64 @@ bool ETXState(unsigned char Motor) {
       break;
     
     case ETXCheckStartup:
-      if (axis[Motor].ETXMotorStatus & MOVEAXIS) {              // Start moving
+			if (axis[Motor].ETXMotorStatus & MOVEAXIS) {              // Start moving
+//jma				CheckAltFlip(Motor);
 
-//dbgSerial.println(""); dbgSerial.print("ETXCheckStartup - Motor: "); dbgSerial.print(Motor); dbgSerial.print(" MOVE");
+				dbgSerial.println(""); dbgSerial.print("ETXCheckStartup - Motor: "); dbgSerial.print(axis_name[Motor]); dbgSerial.print(" MOVING");
 
-        distance = axis[Motor].Target - axis[Motor].Position;   // Distance to target
-        if (axis[Motor].ETXMotorStatus & MOVEDECR)              // If it is decreasing
-          distance = TwosComplement(distance);
+				if (axis[Motor].ETXMotorStatus & MOVESLEW) {
+					axis[Motor].ETXMotorState = ETXSlewMotor;           // Move axis using high speed multiplier
+					if (axis[Motor].ETXMotorStatus & MOVEHIGH) {
+						dbgSerial.print(" HIGH SLEW");
+					}
+					else {
+						axis[Motor].ETXMotorState = ETXCheckSpeed;
+						dbgSerial.print(" LOW SLEW");
+					}
+				}
+				else {                                                  // GoTo or Low Speed Slew
+					axis[Motor].ETXMotorState = ETXCheckSpeed;
+					dbgSerial.print(" GOTO");
+				}
 
-//dbgSerial.print(" Distance: "); dbgSerial.print(distance);
+				if (axis[Motor].MotorControl & GoToHBX) {               // Check GoTo?
+					distance = axis[Motor].Target - axis[Motor].Position;   // Distance to target
+					if (axis[Motor].ETXMotorStatus & MOVEDECR)              // If it is decreasing
+						distance = TwosComplement(distance);
+					dbgSerial.print(" Distance: "); dbgSerial.print(distance);
+					if (axis[Motor].MotorControl & SlewHBX) {             // May need to slew for large changes
+						axis[Motor].ETXMotorState = ETXSlewMotor;						// Slew to M-point
+					}
+					else {
+						axis[Motor].ETXMotorState = ETXCheckSpeed;
+						axis[Motor].TargetSpeed = axis[Motor].DEGREERATE1;  // Set initial speed for 'HIGH SPEED GOTO'
+						if (distance < axis[Motor].OneDegree)
+							axis[Motor].TargetSpeed = (axis[Motor].TargetSpeed >> 1);
+						if (distance < (axis[Motor].OneDegree >> 2))
+							axis[Motor].TargetSpeed = (axis[Motor].TargetSpeed >> 1);
+						axis[Motor].ETXSpeed = 0;                              // Starting from 0 
 
-        if (axis[Motor].ETXMotorStatus & MOVEHIGH) {            // High Speed Slew ?
-          if (axis[Motor].ETXMotorStatus & MOVESLEW) {
-            axis[Motor].ETXMotorState = ETXSlewMotor;           // Move axis using high speed multiplier
+						dbgSerial.print(" GoToSTEP");
+					}
+					if (distance < OffsetMax) {                           // Check for really small moves (< 16 steps)
+						axis[Motor].ETXMotorState = ETXMotorEnd;            // Use Adjust offset
 
-//dbgSerial.print(" HIGH SLEW");
-
-          }
-        }
-        else {                                                  // GoTo or Low Speed Slew
-          axis[Motor].ETXMotorState = ETXCheckSpeed;
-
-//dbgSerial.print(" GOTO");
-
-        }
-
-        if (axis[Motor].MotorControl & GoToHBX) {               // Check GoTo?
-          if (axis[Motor].MotorControl & SlewHBX) {             // May need to slew for large changes
-              axis[Motor].ETXMotorState = ETXSlewMotor;         // Slew to M-point
-
-//dbgSerial.print(" SLEW");
-
-          }
-          else {
-            axis[Motor].ETXMotorState = ETXCheckSpeed;
-            axis[Motor].TargetSpeed = axis[Motor].DEGREERATE1;  // Set initial speed for 'HIGH SPEED GOTO'
-            if (distance < axis[Motor].OneDegree)
-              axis[Motor].TargetSpeed = (axis[Motor].TargetSpeed >> 1);
-            if (distance < (axis[Motor].OneDegree >> 2))
-              axis[Motor].TargetSpeed = (axis[Motor].TargetSpeed >> 1);
-            axis[Motor].Speed = 0;                              // Starting from 0 
-
-//dbgSerial.print(" STEP");
-          }
-          if (distance < OffsetMax) {                           // Check for really small moves (< 16 steps)
-            axis[Motor].ETXMotorState = ETXMotorEnd;            // Use Adjust offset
-    
-//dbgSerial.print(" OFFSET");    
-          }
-          if (distance > (axis[Motor].OneDegree << 3)) {        // Always slew for > 8 degrees
-            axis[Motor].ETXMotorState = ETXSlewMotor;
-//dbgSerial.print(" GoToSLEW");
-          }
-        }
-      }
+						dbgSerial.print(" GoToOFFSET");
+					}
+					if (distance > (axis[Motor].OneDegree << 3)) {        // Always slew for > 8 degrees
+						axis[Motor].ETXMotorState = ETXSlewMotor;
+						dbgSerial.print(" GoToSLEW");
+					}
+				}
+			}
+ 
       break;
   
     case ETXSlewMotor:
 
-//dbgSerial.println(""); dbgSerial.print("ETXSlewMotor Motor: "); dbgSerial.print(Motor); dbgSerial.print(" SLEW Cmd: ");
+//dbgSerial.println(""); dbgSerial.print("ETXSlewMotor Motor: "); dbgSerial.print(axis_name[Motor]); dbgSerial.print(" SLEW Cmd: ");
 
-      digitalWrite(SCOPELED, HIGH);              // Turn on the LED
+      digitalWrite(SCOPELED, HIGH);																	// Turn on the LED
       HBXSendCommand(Stop, Motor);                                  // Stop the motor
 
       if (axis[Motor].ETXMotorStatus & MOVEDECR)										// -ve i.e. -CCW
@@ -90,7 +87,7 @@ bool ETXState(unsigned char Motor) {
       HBXSendCommand(axis[Motor].Command, Motor);										// SLEW
 
       axis[Motor].EQGMotorStatus |= MOVEAXIS;												// Tell EQx
-      axis[Motor].Speed = axis[Motor].DEGREERATE1;									// Set "current speed" for later speed checks
+      axis[Motor].ETXSpeed = axis[Motor].DEGREERATE1;									// Set "current speed" for later speed checks
  
       if (axis[Motor].MotorControl & GoToHBX) {											// Check if slew was caused by a high speed long distance GoTo
         distance = axis[Motor].Target - axis[Motor].Position;       // Check Distance to target
@@ -101,32 +98,42 @@ bool ETXState(unsigned char Motor) {
           axis[Motor].ETXMotorState = ETXStepMotor;
           axis[Motor].MotorControl |= SpeedHBX;											// Use 0x01 command for next speed
           axis[Motor].TargetSpeed = axis[Motor].DEGREERATE1;				// Set initial speed
-          axis[Motor].Speed = axis[Motor].DEGREERATE1;
+          axis[Motor].ETXSpeed = axis[Motor].DEGREERATE1;
           axis[Motor].SpeedState = 0;
 //dbgSerial.print(" GoToSLEW END");
           }
       }
       if (axis[Motor].MotorControl & SlewHBX) {                     // Slewing to M-point
-        axis[Motor].Speed = axis[Motor].DEGREERATE1;                // Indicate current speed (approx)
+        axis[Motor].ETXSpeed = axis[Motor].DEGREERATE1;             // Indicate current speed (approx)
         axis[Motor].ETXMotorState = ETXCheckSlowDown;               // Slew until SlowDown
       }
 
-/*
-dbgSerial.println(""); dbgSerial.print("ETXSlewMotor Motor: "); dbgSerial.print(Motor); 
+//*
+dbgSerial.println(""); dbgSerial.print("ETXSlewMotor Motor: "); dbgSerial.print(axis_name[Motor]); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Cmd: "); dbgSerial.print(axis[Motor].Command, HEX);
 dbgSerial.print(", Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
 dbgSerial.print(", Inc: "); dbgSerial.print(axis[Motor].Increment, HEX);
 dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
-dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].Speed, HEX);
+dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].ETXSpeed, HEX);
 dbgSerial.print(" TargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
 dbgSerial.print(" SpeedState: "); dbgSerial.println(axis[Motor].SpeedState, HEX);
-*/
+//*/
 			break;
   
     case ETXStepMotor:
 
-//dbgSerial.println(""); dbgSerial.print("ETXStepMotor Motor: "); dbgSerial.print(Motor); dbgSerial.print(" STEP Cmd: ");
+//*
+dbgSerial.println(""); dbgSerial.print("ETXStepMotor Motor: "); dbgSerial.print(axis_name[Motor]);
+dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
+dbgSerial.print(", Cmd: "); dbgSerial.print(axis[Motor].Command, HEX);
+dbgSerial.print(", Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
+dbgSerial.print(", Inc: "); dbgSerial.print(axis[Motor].Increment, HEX);
+dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
+dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].ETXSpeed, HEX);
+dbgSerial.print(" TargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
+dbgSerial.print(" SpeedState: "); dbgSerial.println(axis[Motor].SpeedState, HEX);
+//*/
 
       digitalWrite(SCOPELED, HIGH);      // Turn on the LED
       if (axis[Motor].MotorControl & SpeedHBX)              // Stepping, High or Low speed
@@ -137,7 +144,7 @@ dbgSerial.print(" SpeedState: "); dbgSerial.println(axis[Motor].SpeedState, HEX)
       axis[Motor].MotorControl &= ~SpeedHBX;                // Clear flag
       // Set the speed, and direction
       // ----------------------------
-      P1 = axis[Motor].Speed;
+      P1 = axis[Motor].ETXSpeed;
       if (axis[Motor].ETXMotorStatus & MOVEDECR)            // If negative, change P
         P1 = TwosComplement(P1);                            //  to 2's complement
 
@@ -149,19 +156,21 @@ dbgSerial.print(" SpeedState: "); dbgSerial.println(axis[Motor].SpeedState, HEX)
 
       // Send the command
       // ----------------
-      if (HBXSendCommand(axis[Motor].Command, Motor))         // Command OK?
-        HBXSend3Bytes(Motor);                                 // Send the speed
-      axis[Motor].EQGMotorStatus |= MOVEAXIS;                 // Tell EQx
+			if (HBXSendCommand(axis[Motor].Command, Motor)) {         // Send Command, check OK?
+				HBXSend3Bytes(Motor);																		// Send the speed
+				axis[Motor].EQGMotorStatus |= MOVEAXIS;                 // Tell EQx
+			}
+			else break;
 
-      axis[Motor].ETXMotorState = ETXCheckSpeed;              // Make sure we are up to target speed
-      if (axis[Motor].MotorControl & GoToHBX) {               // If it is a GoTo and up to speed, check position
-        if (axis[Motor].Speed == axis[Motor].TargetSpeed)
+      axis[Motor].ETXMotorState = ETXCheckSpeed;								// Preset Checkspeed, & if needed, make sure we are up to target speed
+      if (axis[Motor].MotorControl & GoToHBX) {									// If it is a GoTo and up to speed, check position
+        if (axis[Motor].ETXSpeed == axis[Motor].TargetSpeed)
           axis[Motor].ETXMotorState = ETXCheckPosition;
       }
-      else if (axis[Motor].Speed == 0) {                        // Stop issued
+      else if (axis[Motor].ETXSpeed == 0) {                        // Stop issued
         axis[Motor].ETXMotorState = ETXStopMotor;
       }
-      else if (axis[Motor].Speed == axis[Motor].TargetSpeed) {  // Else slewing at speed
+      else if (axis[Motor].ETXSpeed == axis[Motor].TargetSpeed) {  // Else slewing at speed
         axis[Motor].ETXMotorState = ETXIdle;
       }
     break;
@@ -171,16 +180,16 @@ dbgSerial.print(" SpeedState: "); dbgSerial.println(axis[Motor].SpeedState, HEX)
       // Calculate absolute distance to slowdown
       // ---------------------------------------
 
-/*
-dbgSerial.println(""); dbgSerial.print("ETXCheckSlowDown Motor: "); dbgSerial.print(Motor); 
+///*
+dbgSerial.println(""); dbgSerial.print("ETXCheckSlowDown Motor: "); dbgSerial.print(axis_name[Motor]); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Cmd: "); dbgSerial.print(axis[Motor].Command, HEX);
 dbgSerial.print(", Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
 dbgSerial.print(",  SD: "); dbgSerial.print(axis[Motor].SlowDown, HEX);
 dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
-dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].Speed, HEX);
+dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].ETXSpeed, HEX);
 dbgSerial.print(" TargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
-*/
+//*/
 //    distance = axis[Motor].SlowDown - axis[Motor].Position;
     distance = (axis[Motor].Target - 0x1000) - axis[Motor].Position;    // Distance to target
     if (axis[Motor].Target < axis[Motor].Position)                // If it is decreasing
@@ -214,46 +223,45 @@ ETXSlew8        600             // 150 arc-min/sec or 2.5°/sec
 ETXSlew9       1080             // 270 arc-min/sec or 4.5°/sec
 */
 
-/*
-dbgSerial.println(""); dbgSerial.print("ETXCheckSpeed Motor: "); dbgSerial.print(Motor); 
+///*
+dbgSerial.println(""); dbgSerial.print("ETXCheckSpeed Motor: "); dbgSerial.print(axis_name[Motor]); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
 dbgSerial.print(", Inc: "); dbgSerial.print(axis[Motor].Increment, HEX);
 dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
-dbgSerial.print(" iSpeed: "); dbgSerial.print(axis[Motor].Speed, HEX);
+dbgSerial.print(" iSpeed: "); dbgSerial.print(axis[Motor].ETXSpeed, HEX);
 dbgSerial.print(" iTargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
-*/
+//*/
       axis[Motor].ETXMotorState = ETXStepMotor;                   // Preset set speed as next action
 
 // Ramp up to speed      
-      if ((axis[Motor].TargetSpeed != 0) && (axis[Motor].TargetSpeed > axis[Motor].Speed)) {
-        if ((axis[Motor].TargetSpeed - axis[Motor].Speed) > (axis[Motor].SIDEREALRATE << 6)) {  // 64x sidereal
-          axis[Motor].Speed += ((axis[Motor].TargetSpeed - axis[Motor].Speed) >> 1);   // Ramp up approx .5 difference
-//          while(!(HBXSendCommand(Stop, Motor)));                // Stop the motor command
+      if ((axis[Motor].TargetSpeed != 0) && (axis[Motor].TargetSpeed > axis[Motor].ETXSpeed)) {
+        if ((axis[Motor].TargetSpeed - axis[Motor].ETXSpeed) > (axis[Motor].SIDEREALRATE << 6)) {  // 64x sidereal
+          axis[Motor].ETXSpeed += ((axis[Motor].TargetSpeed - axis[Motor].ETXSpeed) >> 1);   // Ramp up approx .5 difference
           axis[Motor].MotorControl &= ~SpeedHBX;                  // Use 0x00 command
         }
         else {
-          axis[Motor].Speed = axis[Motor].TargetSpeed;            
+          axis[Motor].ETXSpeed = axis[Motor].TargetSpeed;            
           while(!(HBXSendCommand(Stop, Motor)));                 // Stop the motor command
           axis[Motor].MotorControl |= SpeedHBX;                  // Use 0x01 command
         }
       }
 // Ramp down to speed
-      else if ((axis[Motor].TargetSpeed != 0) && (axis[Motor].Speed > axis[Motor].TargetSpeed)) {
-        axis[Motor].Speed -= ((axis[Motor].Speed - axis[Motor].TargetSpeed) >> 2);   // Approx .75
-        if ((axis[Motor].Speed - axis[Motor].TargetSpeed) <= (axis[Motor].SIDEREALRATE << 7)) {
-          axis[Motor].Speed = axis[Motor].TargetSpeed;            // Close enough at 128x sidereal, so set the speed
+      else if ((axis[Motor].TargetSpeed != 0) && (axis[Motor].ETXSpeed > axis[Motor].TargetSpeed)) {
+        axis[Motor].ETXSpeed -= ((axis[Motor].ETXSpeed - axis[Motor].TargetSpeed) >> 2);   // Approx .75
+        if ((axis[Motor].ETXSpeed - axis[Motor].TargetSpeed) <= (axis[Motor].SIDEREALRATE << 7)) {
+          axis[Motor].ETXSpeed = axis[Motor].TargetSpeed;            // Close enough at 128x sidereal, so set the speed
 //          while(!(HBXSendCommand(Stop, Motor)));                  // Stop the motor command
           axis[Motor].MotorControl &= ~SpeedHBX;                   // Use 0x00 command
         }
       }
 // Ramp down to stop
-      else if ((axis[Motor].TargetSpeed == 0) && (axis[Motor].Speed != 0)) {
+      else if ((axis[Motor].TargetSpeed == 0) && (axis[Motor].ETXSpeed != 0)) {
         if (axis[Motor].ETXMotorStatus & MOVESLEW) {
           axis[Motor].ETXMotorState = ETXStopMotor;
         }
-        else if (axis[Motor].Speed >= (axis[Motor].SIDEREALRATE << 7)) {   // Ramp down to 128x sidereal
-          axis[Motor].Speed -= (axis[Motor].Speed >> 2);              // Approximately .75
+        else if (axis[Motor].ETXSpeed >= (axis[Motor].SIDEREALRATE << 7)) {   // Ramp down to 128x sidereal
+          axis[Motor].ETXSpeed -= (axis[Motor].ETXSpeed >> 2);              // Approximately .75
           while(!(HBXSendCommand(Stop, Motor)));                      // Stop the motor command
           axis[Motor].MotorControl |= SpeedHBX;                       // Use 0x01 command
         }
@@ -263,7 +271,7 @@ dbgSerial.print(" iTargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX
 
 // Switch to position check, when we are at speed - check done in ETXStepMotor
       
-//dbgSerial.print(" oSpeed: "); dbgSerial.print(axis[Motor].Speed, HEX);
+//dbgSerial.print(" oSpeed: "); dbgSerial.print(axis[Motor].ETXSpeed, HEX);
 //dbgSerial.print(" oTargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
 
       break;
@@ -275,16 +283,16 @@ dbgSerial.print(" iTargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX
       // Calculate absolute distance to target
       // -------------------------------------
 
-/*
-dbgSerial.println(""); dbgSerial.print("ETXCheckPosition Motor: "); dbgSerial.print(Motor); 
+///*
+dbgSerial.println(""); dbgSerial.print("ETXCheckPosition Motor: "); dbgSerial.print(axis_name[Motor]); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
 dbgSerial.print(", Inc: "); dbgSerial.print(axis[Motor].Increment, HEX);
 dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
-dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].Speed, HEX);
+dbgSerial.print(" Speed: "); dbgSerial.print(axis[Motor].ETXSpeed, HEX);
 dbgSerial.print(" TargetSpeed: "); dbgSerial.print(axis[Motor].TargetSpeed, HEX);
 dbgSerial.print(" SpeedState: "); dbgSerial.print(axis[Motor].SpeedState, HEX);
-*/
+//*/
         if (!(axis[Motor].MotorControl & GoToHBX)) {                // Slewing so update position
           break;
         }
@@ -309,19 +317,19 @@ dbgSerial.print(" SpeedState: "); dbgSerial.print(axis[Motor].SpeedState, HEX);
             axis[Motor].SpeedState += 1;
           }
           else if ((distance <= 0x100) && (axis[Motor].SpeedState == 2)) {
-            axis[Motor].TargetSpeed = axis[Motor].Speed >> 2;           // 1/16
+            axis[Motor].TargetSpeed = axis[Motor].ETXSpeed >> 2;           // 1/16
             axis[Motor].MotorControl &= ~SpeedHBX;                      // Use 0x00 command
             axis[Motor].ETXMotorState = ETXStepMotor;                   // Change speed
             axis[Motor].SpeedState += 1;
           }
           else if ((distance <= 0x200) && (axis[Motor].SpeedState == 1)) {
-            axis[Motor].TargetSpeed = axis[Motor].Speed >> 1;           // 1/4
+            axis[Motor].TargetSpeed = axis[Motor].ETXSpeed >> 1;           // 1/4
             axis[Motor].MotorControl &= ~SpeedHBX;                      // Use 0x00 command
             axis[Motor].ETXMotorState = ETXStepMotor;                   // Change speed
             axis[Motor].SpeedState += 1;
           }
           else if ((distance <= 0x400) && (axis[Motor].SpeedState == 0)) {
-            axis[Motor].TargetSpeed = axis[Motor].Speed >> 1;           // 1/2
+            axis[Motor].TargetSpeed = axis[Motor].ETXSpeed >> 1;           // 1/2
             while(!(HBXSendCommand(Stop, Motor)));                      // Stop the motor command
             axis[Motor].MotorControl |= SpeedHBX;                       // Use 0x01 command
             axis[Motor].ETXMotorState = ETXStepMotor;                   // Change speed
@@ -350,10 +358,10 @@ dbgSerial.print(" SpeedState: "); dbgSerial.print(axis[Motor].SpeedState, HEX);
   
     case ETXStopMotor:
 
-//dbgSerial.println(""); dbgSerial.print("ETXStopMotor Motor: ");  dbgSerial.print(Motor);
+dbgSerial.println(""); dbgSerial.print("ETXStopMotor Motor: ");  dbgSerial.print(axis_name[Motor]);
 
       while(!(HBXSendCommand(Stop, Motor)));                    // Stop the motor
-      axis[Motor].ETXMotorStatus |= MOVESLEW;                      // ETX Set slewing mode
+      axis[Motor].ETXMotorStatus |= MOVESLEW;                   // ETX Set slewing mode
       axis[Motor].ETXMotorStatus &= ~MOVEHIGH;                     //  and speed
       axis[Motor].ETXMotorStatus &= ~MOVEAXIS;                     // Clear the motor moving flag 
       axis[Motor].MotorControl &= ~GoToHBX;                        // Clear the GoTo flag
@@ -362,18 +370,22 @@ dbgSerial.print(" SpeedState: "); dbgSerial.print(axis[Motor].SpeedState, HEX);
       axis[Motor].EQGMotorStatus &= ~MOVEHIGH;                     //  and speed
       axis[Motor].EQGMotorStatus &= ~MOVEAXIS;                     // Clear the motor moving flag 
       axis[Motor].ETXMotorState = ETXCheckStartup;
-      axis[Motor].TargetSpeed = axis[Motor].Speed;              // For any subsequent move
-      axis[Motor].Speed = 0;
+//			axis[Motor].TargetSpeed = axis[Motor].ETXSpeed;              // For any subsequent move
+			axis[Motor].TargetSpeed = 0;
+			axis[Motor].ETXSpeed = 0;
+			
+//jma			CheckAltFlipState();
+			
       break;
       
     case ETXMotorEnd:
-/*
-dbgSerial.println(""); dbgSerial.print("ETXMotorEnd Motor: "); dbgSerial.print(Motor); 
+///*
+dbgSerial.println(""); dbgSerial.print("ETXMotorEnd Motor: "); dbgSerial.print(axis_name[Motor]); 
 dbgSerial.print(" <sts: "); dbgSerial.print(axis[Motor].ETXMotorStatus, HEX); dbgSerial.print("> ");
 dbgSerial.print(", Pos: "); dbgSerial.print(axis[Motor].Position, HEX);
 dbgSerial.print(", Inc: "); dbgSerial.print(axis[Motor].Increment, HEX);
 dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
-*/
+//*/
       digitalWrite(SCOPELED, LOW);           // Turn off the LED
       distance = axis[Motor].Target - axis[Motor].Position;      // Distance to target
       if (axis[Motor].Target < axis[Motor].Position)          // If it is decreasing
@@ -389,13 +401,13 @@ dbgSerial.print("->Tgt: "); dbgSerial.print(axis[Motor].Target, HEX);
         if (HBXSendCommand(axis[Motor].Command, Motor))   // Command OK?
           HBXSend2Bytes(Motor);                           // Send the offset
 
-/*
+///*
 dbgSerial.print(" OFFSET");
 dbgSerial.print(" "); dbgSerial.print(axis[Motor].Command, HEX);
 dbgSerial.print(" "); dbgSerial.print(axis[Motor].HBXP1, HEX);
 dbgSerial.print(" "); dbgSerial.print(axis[Motor].HBXP2, HEX);
 dbgSerial.print(" "); dbgSerial.print(axis[Motor].HBXP3, HEX);
-*/
+//*/
       }  
       axis[Motor].Position = axis[Motor].Target;
       axis[Motor].MotorControl &= ~GoToHBX;                  // Clear the flag
@@ -412,7 +424,7 @@ dbgSerial.print(" "); dbgSerial.print(axis[Motor].HBXP3, HEX);
 
 bool HBXGetStatus(unsigned char Motor) {
   if (!HBXSendCommand(GetStatus, Motor)) {
-		dbgSerial.println(""); dbgSerial.print("HBXGetStatus Motor: "); dbgSerial.print(Motor); dbgSerial.println(" Cmd Fail");
+		dbgSerial.println(""); dbgSerial.print("HBXGetStatus Motor: "); dbgSerial.print(axis_name[Motor]); dbgSerial.println(" Cmd Fail");
 		return(false);
   }
 	HBXGet3Bytes(Motor);     
@@ -431,7 +443,7 @@ bool HBXGetStatus(unsigned char Motor) {
 
 	if (StatusCount++ > 51) {
 		StatusCount = 0;
-		dbgSerial.println(""); dbgSerial.print("Motor: "); dbgSerial.print(Motor); dbgSerial.print(", Posn: "); dbgSerial.print(axis[Motor].Position, HEX);
+		dbgSerial.println(""); dbgSerial.print("Motor: "); dbgSerial.print(axis_name[Motor]); dbgSerial.print(", Posn: "); dbgSerial.print(axis[Motor].Position, HEX);
 	}
 	return(true);
 }
@@ -537,10 +549,11 @@ void AzInitialise(unsigned char scope) {
   axis[AzMotor].GbxRatio = ratio[scope][AzMotor-1].GbxRatio; 
   axis[AzMotor].XferRatio = ratio[scope][AzMotor-1].XferRatio; 
   axis[AzMotor].WormTeeth = ratio[scope][AzMotor-1].WormTeeth;
-// EQMOD values
+// EQMOD
   axis[AzMotor].aVALUE = axis[AzMotor].Vanes * (float)4 * axis[AzMotor].GbxRatio * axis[AzMotor].XferRatio * axis[AzMotor].WormTeeth;
   axis[AzMotor].MeadeRatio = axis[AzMotor].aVALUE / ArcSecs360;   // Distance for one arcsec
-  axis[AzMotor].bVALUE = (MeadeSidereal * axis[AzMotor].MeadeRatio * axis[AzMotor].aVALUE * SiderealArcSecs) / ArcSecs360;  
+  axis[AzMotor].bVALUE = (MeadeSidereal * axis[AzMotor].MeadeRatio * axis[AzMotor].aVALUE * SiderealArcSecs) / ArcSecs360;
+	axis[AzMotor].BASERATE = axis[AzMotor].bVALUE / axis[AzMotor].MeadeRatio;
   axis[AzMotor].SIDEREALRATE = MeadeSidereal * axis[AzMotor].MeadeRatio;
   axis[AzMotor].SOLARRATE = axis[AzMotor].SIDEREALRATE * SOLARSECS / SIDEREALSECS;
   axis[AzMotor].LUNARRATE = axis[AzMotor].SIDEREALRATE * LUNARSECS / SIDEREALSECS;
@@ -550,7 +563,10 @@ void AzInitialise(unsigned char scope) {
   axis[AzMotor].HBXP1 = 0x00;             
   axis[AzMotor].HBXP2 = 0x00;
   axis[AzMotor].HBXP3 = 0x00;
-  axis[AzMotor].HBXP4 = 0x00; 
+  axis[AzMotor].HBXP4 = 0x00;
+	axis[AzMotor].ETXSpeed = 0x00;
+	axis[AzMotor].SpeedState = 0x00;
+	axis[AzMotor].TargetSpeed = 0x00;
   axis[AzMotor].Position = ETX_CENTRE;														// ETX RA initially at 0 hours
   axis[AzMotor].OneDegree = axis[AzMotor].aVALUE / (float)360;    // Distance for one degree
   axis[AzMotor].Target = axis[AzMotor].Position;
@@ -567,28 +583,128 @@ void AltInitialise(unsigned char scope) {
   axis[AltMotor].GbxRatio = ratio[scope][AltMotor-1].GbxRatio; 
   axis[AltMotor].XferRatio = ratio[scope][AltMotor-1].XferRatio; 
   axis[AltMotor].WormTeeth = ratio[scope][AltMotor-1].WormTeeth;
-// EQMOD values  
+// EQMOD 
   axis[AltMotor].aVALUE = axis[AltMotor].Vanes * (float)4 * axis[AltMotor].GbxRatio * axis[AltMotor].XferRatio * axis[AltMotor].WormTeeth;
-  axis[AltMotor].MeadeRatio = axis[AltMotor].aVALUE / ArcSecs360;   // Distance for one arcsec
+  axis[AltMotor].MeadeRatio = axis[AltMotor].aVALUE / ArcSecs360;   // Counts for one arcsec
   axis[AltMotor].bVALUE = MeadeSidereal * axis[AltMotor].MeadeRatio * axis[AltMotor].aVALUE * SiderealArcSecs / ArcSecs360;  
-  axis[AltMotor].SIDEREALRATE = MeadeSidereal * axis[AltMotor].MeadeRatio;
-  axis[AltMotor].SOLARRATE = axis[AltMotor].SIDEREALRATE * SOLARSECS / SIDEREALSECS;
+	axis[AltMotor].BASERATE = axis[AltMotor].bVALUE / axis[AltMotor].MeadeRatio;
+	axis[AltMotor].SIDEREALRATE = MeadeSidereal * axis[AltMotor].MeadeRatio;
+	axis[AltMotor].SOLARRATE = axis[AltMotor].SIDEREALRATE * SOLARSECS / SIDEREALSECS;
   axis[AltMotor].LUNARRATE = axis[AltMotor].SIDEREALRATE * LUNARSECS / SIDEREALSECS;
   axis[AltMotor].DEGREERATE1 = axis[AltMotor].SIDEREALRATE * ETXSlew7;
   axis[AltMotor].PEC = axis[AltMotor].aVALUE / axis[AltMotor].WormTeeth;
+	axis[AltMotor].EQGMotorStatus = MOVESLEW;
 // ETX
   axis[AltMotor].HBXP1 = 0x00;             
   axis[AltMotor].HBXP2 = 0x00;
   axis[AltMotor].HBXP3 = 0x00;
-  axis[AltMotor].HBXP4 = 0x00;
-  axis[AltMotor].Position = ETX_CENTRE - (axis[AltMotor].aVALUE >> 2);			// Initially at -90 degrees
-  axis[AltMotor].OneDegree = axis[AltMotor].aVALUE / (float)360;						// Distance for one degree
+	axis[AltMotor].HBXP4 = 0x00;
+	axis[AltMotor].ETXSpeed = 0x00;
+	axis[AltMotor].SpeedState = 0x00;
+	axis[AltMotor].TargetSpeed = 0x00;
+	axis[AltMotor].Position = ETX_CENTRE + (axis[AltMotor].aVALUE >> 2);			// Initially at +90 degrees
+	axis[AltMotor].OneDegree = axis[AltMotor].aVALUE / (float)360;						// Distance for one degree
   axis[AltMotor].Target = axis[AltMotor].Position;
   axis[AltMotor].DirnSpeed = 0x000;
   axis[AltMotor].ETXMotorStatus = MOVESLEW;
-  axis[AltMotor].EQGMotorStatus = MOVESLEW;
+
   axis[AltMotor].ETXMotorState = ETXCheckStartup;  
 }  
+
+/*
+// Check if ETX mount will hit fork physical limits
+// When used as GEM, ETX mounts cannot go past vertical
+// This means E in Sthn, W in Nthn, for East side pointing West
+// So rotate 180 degrees in Az and flip the Alt destination
+*/
+void CheckAltFlip(unsigned char Motor) {
+	long  distance;
+	distance = axis[Motor].Target - axis[Motor].Position;   // Distance to target
+	if ((telescope < 3) && (Motor == AltMotor)) {																		// ETXn0 series
+		long p;
+		if (distance > 0) {
+			// GoTo
+			if (axis[AltMotor].Target >= (ETX_CENTRE + (axis[AltMotor].aVALUE >> 2))) {		// E[Sthn] (or W[Nthn])
+				dbgSerial.println(""); dbgSerial.print("Flip: target "); dbgSerial.print(axis[AltMotor].Target);																																													// Set Target
+				p = axis[AltMotor].Target - (ETX_CENTRE + (axis[AltMotor].aVALUE >> 2));		// Offset from EQG midpoint
+				axis[AltMotor].Target -= (p << 1);																					// Swap to other side
+				distance = axis[Motor].Target - axis[Motor].Position;												// Distance to target
+				dbgSerial.print(", new  "); dbgSerial.print(axis[AltMotor].Target);
+				// Flip direction
+				if (axis[AltMotor].ETXMotorStatus & MOVEDECR) axis[AltMotor].ETXMotorStatus &= ~MOVEDECR;
+				else axis[AltMotor].ETXMotorStatus |= MOVEDECR;
+				// Set SlowDown
+				p = axis[AltMotor].SlowDown - (ETX_CENTRE + (axis[AltMotor].aVALUE >> 2));
+				axis[AltMotor].SlowDown -= (p << 1);
+				dbgSerial.print(", Slowdown  "); dbgSerial.print(p);
+				if (axis[AltMotor].Flip == NORMAL) {
+					axis[AltMotor].Flip = FLIP;
+					dbgSerial.print(", Type  "); dbgSerial.print("ALREADY FLIPPED");
+				}
+				else {
+					dbgSerial.print(", Type  "); dbgSerial.print("NORMAL");
+				}
+			}
+			else {
+				if (axis[AltMotor].Flip == FLIPPED) {
+					axis[AltMotor].Flip = UNFLIP;
+					dbgSerial.print(", Action  "); dbgSerial.print("UNFLIP");
+				}
+				else {
+					dbgSerial.print(", Action  "); dbgSerial.print("NOTHING");
+				}
+			}
+		}
+		else {
+			// SLEW
+			if (axis[AltMotor].ETXMotorStatus & MOVEDECR) {
+				axis[AltMotor].ETXMotorStatus &= ~MOVEDECR;
+				if (axis[AltMotor].Flip == NORMAL) {
+					axis[AltMotor].Flip = FLIP;
+					dbgSerial.print(", Action  "); dbgSerial.print("FLIP");
+				}
+				else {
+					dbgSerial.print(", Action  "); dbgSerial.print("NOTHING");
+				}
+			}
+			if (axis[AltMotor].Flip == FLIPPED) {
+				axis[AltMotor].Flip = UNFLIP;
+				dbgSerial.print(", Action  "); dbgSerial.print("FLIP");
+			}
+			else {
+				dbgSerial.print(", Action  "); dbgSerial.print("NOTHING");
+			}
+		}
+	}
+}
+
+void CheckAltFlipState(void) {
+	if ((axis[AltMotor].Flip == FLIPPING) || (axis[AltMotor].Flip == UNFLIPPING)) {
+		dbgSerial.println(""); dbgSerial.print("Stop Motor:  ");
+		if (axis[AltMotor].Flip == FLIPPING) {
+			axis[AltMotor].Flip = FLIPPED; dbgSerial.print("FLIPPING");
+		}
+		else {
+			axis[AltMotor].Flip = NORMAL; dbgSerial.print("NORMAl");
+		}
+	}
+}
+
+void CheckAltFlipReqd(void) {
+	if (axis[AltMotor].ETXMotorState == ETXIdle) {
+		if ((axis[AltMotor].Flip == FLIP) || (axis[AltMotor].Flip == UNFLIP)) {
+			if (axis[AltMotor].Flip == FLIP) axis[AltMotor].Flip = FLIPPING;
+			else axis[AltMotor].Flip = UNFLIPPING;
+			// Rotate 180 degrees in RA
+			if (axis[AzMotor].Target > ETX_CENTRE) axis[AzMotor].Target -= (axis[AzMotor].aVALUE >> 1);
+			else axis[AzMotor].Target += (axis[AzMotor].aVALUE >> 1);
+			axis[AzMotor].ETXMotorStatus |= (MOVEAXIS || MOVEHIGH);
+			axis[AzMotor].ETXMotorStatus &= ~MOVESLEW;
+			axis[AzMotor].MotorControl |= GoToHBX;
+			CheckETXState(AzMotor);
+		}
+	}
+}
 
 void PrintHbxValues(unsigned char Motor) {
   if (Motor == AzMotor) 
@@ -607,8 +723,9 @@ void PrintHbxValues(unsigned char Motor) {
   dbgSerial.print(", bVALUE 0x"); dbgSerial.print(axis[Motor].bVALUE, HEX); 
   dbgSerial.print(", PEC 0x"); dbgSerial.println(axis[Motor].PEC, HEX);
 
-  dbgSerial.print("SIDEREALRATE 0x"); dbgSerial.print(axis[Motor].SIDEREALRATE, HEX);
-  dbgSerial.print(", SOLARRATE 0x"); dbgSerial.print(axis[Motor].SOLARRATE, HEX);
+	dbgSerial.print("BASERATE 0x"); dbgSerial.print(axis[Motor].BASERATE, HEX);
+	dbgSerial.print(", SIDEREALRATE 0x"); dbgSerial.print(axis[Motor].SIDEREALRATE, HEX);
+	dbgSerial.print(", SOLARRATE 0x"); dbgSerial.print(axis[Motor].SOLARRATE, HEX);
   dbgSerial.print(", LUNARRATE 0x"); dbgSerial.print(axis[Motor].LUNARRATE, HEX);
   dbgSerial.print(", DEGREERATE1 0x"); dbgSerial.println(axis[Motor].DEGREERATE1, HEX);
 
@@ -638,7 +755,7 @@ void HBXPrintStatus(unsigned char Motor) {
 
 		/*		dbgSerial.println("");
 				dbgSerial.print("Motor: ");
-				dbgSerial.print(Motor);
+				dbgSerial.print(axis_name[Motor]);
 				dbgSerial.print(", Cmnd: ");
 				dbgSerial.print(axis[Motor].Command, HEX);
 				dbgSerial.print(" -  ");

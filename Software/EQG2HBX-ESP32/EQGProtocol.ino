@@ -228,9 +228,9 @@ In HiSpeed mode, you must issue a stop, resend :G, reset :I then restart.
 // ===============================
 void EQGState(void) {
   while ((EQGRxiPtr != EQGRxoPtr) && (EQGDone == 0)) {
-    if (dbgFlag == 1) {
-//      if (EQGRxBuffer[EQGRxoPtr] == 'j')
-//        dbgFlag = 0;
+/*    if (dbgFlag == 1) {
+      if (EQGRxBuffer[EQGRxoPtr] == 'j')
+        dbgFlag = 0;
     }
     if (EQGRxBuffer[EQGRxoPtr] == ':') {
       dbgSerial.println("");
@@ -240,7 +240,7 @@ void EQGState(void) {
     if (dbgFlag) {
       dbgSerial.write(EQGRxBuffer[EQGRxoPtr]);
     }
-          
+*/          
       EQGRxChar = EQGRxBuffer[EQGRxoPtr++];   // Get a character
  			if ((EQGRxState < EQG_WAITFORCR) && (EQGRxChar < ' ')) {
 				EQGRxState = EQG_INTERPRET;	          // Terminate on non-alpha
@@ -497,12 +497,12 @@ void EQGState(void) {
 }
 
 void EQGError(unsigned char errorbyte) {
-  EQGTx('!') ;        // Failure - Bad Parameters
+  EQGTx('!') ;													// Failure - Bad Parameters
   EQGTx(errorbyte);
   EQGTx(CR);
-  EQGDone = 0;        // Process errors
+  EQGDone = 0;													// Process errors
   EQGRxState = EQG_CMNDSTART;
-  EQGRxCount = 0;     // Count for # parameters
+  EQGRxCount = 0;												// Count for # parameters
   EQGErrorValue = 0;
 }
 
@@ -562,12 +562,12 @@ void EQGAction(void) {
 					EQGTxHex6(axis[EQGMOTOR].Position);
 				  break;
 
-				case 'm':                       // GET Point at which to change from fast to slow
+				case 'm':																	// GET Point at which to change from fast to slow
 					EQGTxHex6(axis[EQGMOTOR].SlowDown);
 				  break;
 
-				case 'q':                       // GET mount capabilities
-					EQGTxHex6(EQGASSETS);					// Say EQ and AZ
+				case 'q':																	// GET mount capabilities
+					EQGTxHex6(EQGASSETS);										// Say EQ and AZ
 					break;
 
 				case 's':                                 // PEC period
@@ -575,50 +575,56 @@ void EQGAction(void) {
 				  break;
 
 				case 'E':							                    // Set current motor position
-          axis[EQGMOTOR].Position = EQGP1;
-          break;
+					if ((EQGP1 == 0x800000) || (EQGP1 == 0x85049c))
+						break;
+          else axis[EQGMOTOR].Position = EQGP1;
+						break;
 
 				case 'F':                                 // Initialize and activate motors
           axis[EQGMOTOR].EQGMotorStatus |= MOVEACTIVE;      
           axis[EQGMOTOR].ETXMotorStatus |= MOVEACTIVE;      
 				  break;
 
-				case 'G':                           // EQG 'G' Command      :GxAB[0D]
+				case 'G':																	// EQG 'G' Command      :GxAB[0D]
 
-             // See below for A
+// See below for A
+// ===============
 // B nibble
-             // B = '0'  +CW  and Nthn Hemi
-             //     '1'  -CCW and Nthn Hemi
-             //     '2'  +CW  and Sthn Hemi
-             //     '3'  -CCW and Sthn Hemi
-             // xxx0   0 means +ve, 1 = -ve  "motor" direction, ie code takes care of whats N/S/E/W etc
-             //        +ve speed in RA  is Axis moves CW when viewed from pole
-             //        +ve speed in DEC is Axis moves CCW when viewed from above
-             // xx0x   0 means Nthn Hemi else Sthn Hemi ( ST4 guiding related ) ?????
-             // Note! when using :S type gotos, the direction bit here "appears" to be ignored
-             // Also note that EQMOD does not appear to send the Hemisphere bit
-             // 
-             // xxx0      CW(0)        CCW(1)       DIRECTION
-             // xx0x      North(0)     South(1)     HEMISPHERE
+// --------
+						// B = '0'  +CW  and Nthn Hemi
+            //     '1'  -CCW and Nthn Hemi
+            //     '2'  +CW  and Sthn Hemi
+            //     '3'  -CCW and Sthn Hemi
+            // xxx0   0 means +ve, 1 = -ve  "motor" direction, ie code takes care of whats N/S/E/W etc
+            //        +ve speed in RA  is Axis moves CW when viewed from pole
+            //        +ve speed in DEC is Axis moves CCW when viewed from above (OTA horizontal, facing E->W ?)
+            // xx0x   0 means Nthn Hemi else Sthn Hemi ( ST4 guiding related ) ?????
+            // Note! when using :S type gotos, the direction bit here "appears" to be ignored
+            // Also note that EQMOD does not appear to send the Hemisphere bit
+            // 
+            // xxx0      CW(0)        CCW(1)       DIRECTION
+            // xx0x      North(0)     South(1)     HEMISPHERE
 
 				axis[EQGMOTOR].DirnSpeed = (int)EQGP1;          // Save the command value
 				switch (axis[EQGMOTOR].DirnSpeed & 0x03)	{
 					case 0x00:
 					case 0x02:
 						axis[EQGMOTOR].EQGMotorStatus &= ~MOVEDECR;
-//						dbgSerial.print(" +CW  ");
+dbgSerial.print(" +CW  ");
 						break;
 					case 0x01:
 					case 0x03:
 						axis[EQGMOTOR].EQGMotorStatus |= MOVEDECR;
-//						dbgSerial.print(" -CCW ");
+dbgSerial.print(" -CCW ");
 						break;
 					default:
 						break;
 				}
 
+//	When setting "Slew" data, it also requires a set procedure
+//	G sets direction and speed "range", and must be sent when stopped.
 // A nibble
-             // A = '0' high speed GOTO slewing,      doesnt make "bitmapped" sense, but it is as coded by SkyWatcher????? ?????
+             // A = '0' high speed GOTO slewing,      doesnt make "bitmapped" sense, but it is as coded by SkyWatcher
              //     '1' low  speed slewing mode,      all other bytes use bitmapping ( incl :f ), this doesnt
              //     '2' low  speed GOTO mode,
              //     '3' high speed slewing mode
@@ -631,27 +637,27 @@ void EQGAction(void) {
           case 00:    // 0 HIGH SPEED GOTO
             axis[EQGMOTOR].EQGMotorStatus &= ~MOVESLEW;     // GoTo target
             axis[EQGMOTOR].EQGMotorStatus |= MOVEHIGH;      // Enable high speed multiplier
-//            dbgSerial.print("HIGH SPEED GOTO");
+dbgSerial.print("HIGH SPEED GOTO ");
             break;
           case 01:    // 1 LOW  SPEED SLEW
             axis[EQGMOTOR].EQGMotorStatus |= MOVESLEW;      // Just move the axis
             axis[EQGMOTOR].EQGMotorStatus &= ~MOVEHIGH;     // Disable high speed multiplier
-//            dbgSerial.print("LOW  SPEED SLEW");
+dbgSerial.print("LOW  SPEED SLEW ");
             break;
           case 02:    // 2 LOW  SPEED GOTO
             axis[EQGMOTOR].EQGMotorStatus &= ~MOVESLEW;     // GoTo target
             axis[EQGMOTOR].EQGMotorStatus &= ~MOVEHIGH;     // Disable high speed multiplier
-//            dbgSerial.print("LOW SPEED GOTO");
+dbgSerial.print("LOW  SPEED GOTO ");
             break;
           case 03:    // 3 HIGH SPEED SLEW
             axis[EQGMOTOR].EQGMotorStatus |= MOVESLEW;      // Just move the axis
             axis[EQGMOTOR].EQGMotorStatus |= MOVEHIGH;      // Enable high speed multiplier
-//            dbgSerial.print("HIGH SPEED SLEW");
+dbgSerial.print("HIGH SPEED SLEW ");
             break;
         }
+dbgSerial.print(axis[EQGMOTOR].TargetSpeed);
 
         axis[EQGMOTOR].ETXMotorStatus = axis[EQGMOTOR].EQGMotorStatus; // Copy the status for ETXProtocol
-
 				break;
 
 				case 'H':                                      // Set the goto target increment
@@ -661,10 +667,22 @@ void EQGAction(void) {
           else
             axis[EQGMOTOR].Target = axis[EQGMOTOR].Position + axis[EQGMOTOR].Increment;   // add the relative target      
           axis[EQGMOTOR].MotorControl |= GoToHBX;
-
 				  break;
 
 				case 'I':   // Set motor speed
+/*
+					:I is used to set the speed.
+						The value used is basically the number of timer interrupts per microstep
+						------------------------------------------------------------------------
+						:I = (:b * ArcSecs360 / :a) / Speed			(where Speed is in arcsec/sec, ArcSecs360=360*60*60=129600)
+						Speed = :g * (:b * ArcSecs360 / :a) / I
+						=======================================
+						If :I is greater than about 10, then the slew will need to use :G = LoSpeed mode
+						If :I is less than 10, then the slew will need :G = HiRate, and :I =  :I * :g
+						In LoSpeed mode, once moving, simply resending a new :I will cause the speed to change.
+						In HiSpeed mode, you must issue a stop, resend :G, reset :I then restart.
+						:b = :I * Speed / g * :a / ArcSecs360
+*/
 
 // From EQMOD
 // Multiplier   = EQGSidereal / :I
@@ -675,14 +693,16 @@ void EQGAction(void) {
 // SpeedHi      = ETXSidereal * MultiplierHi
 
 // Calculation
-// Speed        = SiderealRate * (:ISidereal / )
+// Speed        = SiderealRate * (Sidereal / :I)
 // SpeedHi      = SiderealRate * ((Sidereal*g) / :I)
 
-        axis[EQGMOTOR].TargetSpeed = EQGP1;              // Set the target speed
-				  break;
+
+					axis[EQGMOTOR].EQGSpeed = EQGP1;							// Set EQG speed value
+					axis[EQGMOTOR].TargetSpeed = EQGP1;           // Set ETX target speed
+					break;
 
 				case 'J':             // Tell motor to Go
-          axis[EQGMOTOR].ETXMotorStatus |= MOVEAXIS;                // Signal moving
+					axis[EQGMOTOR].ETXMotorStatus |= MOVEAXIS;                // Signal moving
           axis[EQGMOTOR].ETXMotorState = ETXCheckStartup;           // General entry
 
 				  break;
@@ -696,7 +716,8 @@ void EQGAction(void) {
 
         case 'L':             // Tell motor to stop immediately
           axis[EQGMOTOR].EQGMotorStatus |= MOVESLEW;              // Clear speed change
-          axis[EQGMOTOR].TargetSpeed = 0;
+					axis[EQGMOTOR].ETXMotorStatus |= MOVESLEW;              // Set slew as default
+					axis[EQGMOTOR].TargetSpeed = 0;
           axis[EQGMOTOR].ETXMotorState = ETXStopMotor;            // Immediate stop
           break;
 
@@ -833,7 +854,7 @@ void debugEQG() {
 	dbgSerial.print(" Tgt: ");
 	dbgSerial.print(axis[AzMotor].Target, HEX);
 	dbgSerial.print(" Speed: ");
-	dbgSerial.print(axis[AzMotor].Speed, HEX);
+	dbgSerial.print(axis[AzMotor].ETXSpeed, HEX);
 
 	dbgSerial.print(", Alt:<");
 	dbgSerial.print(axis[AltMotor].EQGMotorStatus, HEX);
@@ -844,7 +865,7 @@ void debugEQG() {
 	dbgSerial.print(" Tgt: ");
 	dbgSerial.print(axis[AltMotor].Target, HEX);
 	dbgSerial.print(" Speed: ");
-	dbgSerial.print(axis[AltMotor].Speed, HEX);
+	dbgSerial.print(axis[AltMotor].ETXSpeed, HEX);
 /*
 	while (dbgRxoPtr != dbgRxiPtr) {
 		dbgCommand[dbgIndex] = dbgRxBuffer[dbgRxoPtr];              // Copy character

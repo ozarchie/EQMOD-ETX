@@ -87,7 +87,7 @@ void putRxDataIntoMountInputBuffer(void) {
 // Data in sendWiFi.text, length sendWiFi.len
 void getTxDataFromMountOutputBuffer(void) {
 	while (EQGTxoPtr != EQGTxiPtr) {
-		dbgSerial.write(EQGTxBuffer[EQGTxoPtr]);
+//jma dbgSerial.write(EQGTxBuffer[EQGTxoPtr]);
 		sendWiFi.text[TxDIndex++] = EQGTxBuffer[EQGTxoPtr++];
 		EQGTxoPtr &= EQGMASK;
   }

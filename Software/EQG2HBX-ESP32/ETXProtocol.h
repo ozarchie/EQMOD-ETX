@@ -49,13 +49,20 @@
 #define ETXCheckStop      7
 #define ETXStopMotor      8
 #define ETXMotorEnd       9
+// ETX axis State Machine
+#define NORMAL						0
+#define FLIP							1
+#define	FLIPPED			      2
+#define UNFLIP			      3
+#define FLIPPING		      4
+#define UNFLIPPING		    5
 
 const float   ETX60PERIOD     = 152.587891;		// (1/6.5536mS)
 
 const unsigned long		ETX_CENTRE = 0x00800000;			// RA, DEC;
 
 const float   MeadeSidereal   = 6460.0900;    // Refer Andrew Johansen - Roboscope
-const float   SiderealArcSecs = 15.041069;    // Sidereal arcsecs/sec
+const float   SiderealArcSecs = 15.041069;    // Sidereal arcsecs/sec (ArcSec360/Sidereal secs)
 const float   ArcSecs360      = 1296000;      // Arcsecs / 360
 
 
@@ -71,12 +78,13 @@ const float   ArcSecs360      = 1296000;      // Arcsecs / 360
 
 #define ETXSLOWPOSN     0x00000800      // Point at which to start slowdown
 
-bool HBXGetStatus(unsigned char);
+// bool HBXGetStatus(unsigned char);
 
+/*
 bool HBXSetMotorState(unsigned char);
 bool HBXCheckTargetStatus(unsigned char);
 bool HBXUpdatePosn(void);
 bool HBXStartMotor(unsigned char);
 bool HBXStopMotor(unsigned char);
 void PositionPoll(unsigned char);
-
+*/

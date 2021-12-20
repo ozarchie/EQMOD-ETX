@@ -211,7 +211,7 @@ enum SkywatcherSetFeatureCmd
 #define AAZEQ6			0x00B008				// WiFi, !:J3, PolarLED		; AZ/EQ
 
 // Motor firmware versions
-#define VEQ6        0x000204    // Pretend EQ6			V 2.04	yyyy.mm.dd
+#define VEQ6        0x000402    // Pretend EQ6			V 2.04	yyyy.mm.dd
 #define VHEQ5       0x010204    // Pretend HEQ5			V 2.04	yyyy.mm.dd
 #define VEQ5        0x020207    // Pretend EQ5			V 2.07	yyyy.mm.dd
 #define VEQ3        0x030207    // Pretend EQ3			V 2.07	yyyy.mm.dd
@@ -223,19 +223,19 @@ enum SkywatcherSetFeatureCmd
 #define EQGASSETS		AEQ6
 
 
-// :I := ( :b * 1296000 / :a ) / Speed    ( where Speed is in arcsec/sec )
+// :I := ( :b * (360*60*60) / :a ) / Speed    ( where Speed is in arcsec/sec )
 // If :I is greater than about 10, then the slew will need to use :G = LoSpeed mode
 // If :I is less than 10, then the slew will need :G = HiRate, and :I := I * :g
 //    a-AxxValue (Ticks/rev)  := AxxVanes * 4 * AxxGbxRatio * ( Axx Transfer ) * AxxWormTeeth 
-//    b-AxxValue              := 6460.09 * AxxRatio * a-AxxValue * 15.041069 / 1,296,000
+//    b-AxxValue              := 6460.09 * AxxRatio * a-AxxValue * 15.041069 / (360*60*60)
 
-// Speed = g*(b*129600/a)/I
+// Speed = g*(b*(360*60*60)/a)/I
 // ==============================
-// IVALUE = (axis[EQGMOTOR].bVALUE * 1296000) / axis[EQGMOTOR].STEPSPER360)
+// IVALUE = (axis[EQGMOTOR].bVALUE * (360*60*60)) / axis[EQGMOTOR].STEPSPER360)
 
 #define EQG_gVALUE        0x000010
 
-#define EQGMAXIMUMSPEED   12          // 0x0C
+#define EQGMAXIMUMSPEED   12
 
 // EQG 'G' Command      - SET move parameters
 #define DIRECTION       0x00000001      // Increasing(0)  Decreasing(1)

@@ -96,6 +96,7 @@ typedef struct {
 
   unsigned char HBXBitCount;        // #bits left to process
   unsigned char Command;            // Current command
+	unsigned char Flip;								// Axis flipped - Alt for negative, Az probably never
   unsigned char HBXData;					  // Data byte from HBX Bus
   unsigned char HBXP1;						  // HBX status/data - MSB
   unsigned char HBXP2;						  // HBX status/data - LSB
@@ -108,11 +109,12 @@ typedef struct {
            char HBXSnapPort;        // Snap port
 					 char	LEDValue;						// Polar LED brightness
            char ETXSpeedCommand;    // Current ETX Speed command
-           long Speed;              // Move speed
+           long EQGSpeed;           // Move speed
+					 long ETXSpeed;           // Move speed
            long TargetSpeed;        // Target Move speed
            char SpeedState;         // Slowdown/speedup state
            long Position;           // Current position
-           long Target;             // Current target delta
+           long Target;             // Current target
            long Increment;          // Change in position for motor speed calcs  
            long SlowDown;           // Point to change to lower speed
            long Offset;             // Current adjustment
@@ -134,11 +136,13 @@ typedef struct {
 // SOLARRATE = (SOLARSECS/SIDEREALSECS) * SIDEREALRATE
 // LUNARRATE = (SOLARSECS/SIDEREALSECS) * SIDEREALRATE
 // DEGREERATE1 = 240 * SIDEREALRATE
+// BASERATE = (b * arcsec360) / a
 
   unsigned long SIDEREALRATE;       // Constants
   unsigned long SOLARRATE;
   unsigned long LUNARRATE;
-  unsigned long DEGREERATE1;
+	unsigned long BASERATE;
+	unsigned long DEGREERATE1;
 
 // PEC = a-VALUE / WormTeeth;
   unsigned long PEC;                // PEC period (period of worm tooth)
@@ -162,6 +166,13 @@ unsigned char telescope = 0;        // Default telescope	(ETX60)
 unsigned char protocol = 0;					// Default protocol		(UDP)
 unsigned char station = 0;					// Default station		(AP)
 char scope[16] = "ETX60";
+
+char * axis_name[3] =
+{
+	"Bad",
+	"Az ",
+	"Alt"
+};
 
 axis_values ratio[16][2] =																	// 16 scopes, Az, Alt
   {

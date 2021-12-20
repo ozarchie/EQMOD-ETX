@@ -131,13 +131,12 @@ void setup()
 		protocol = (preferences.getUChar("STATION", 0));
 	}
 	dbgSerial.print("Station: ");
-	dbgSerial.print(station);
-	dbgSerial.print(", ");
+	dbgSerial.println(station);
 	preferences.end();
 
 	AzInitialise(telescope);
 	AltInitialise(telescope);
-	PrintRatioValues(telescope);
+	//PrintRatioValues(telescope);
 	PrintHbxValues(AzMotor);
 	PrintHbxValues(AltMotor);
 
@@ -239,6 +238,9 @@ void loop()
 		if (StateSelect) CheckETXState(AzMotor);
 		else  CheckETXState(AltMotor);
 	}
+	
+//jma	CheckAltFlipReqd();
+	
 	if ((micros() - StatusTimer) > (STATUSDELAY * 1000)) {   // ~50mS
 		if (StatusSelect) StatusSelect = false;
 		else StatusSelect = true;
