@@ -114,7 +114,6 @@ void setup()
 	dbgSerial.begin(115200);											// debug
 	EQGSerial.begin(9600, SERIAL_8N1, 18, 19);    // EQG via serial or WiFi
 	delay(10);
-  StartOTAIfRequired();
 #endif
 
 	dbgSerial.println(EQ2HBX_Version);
