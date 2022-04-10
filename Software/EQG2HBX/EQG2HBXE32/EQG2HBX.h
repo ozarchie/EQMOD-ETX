@@ -1,57 +1,37 @@
 /*
- * Copyright 2017, 2018 John Archbold
+ * Copyright 2017, 2018, 2020 John Archbold
 */
 
-#include <Arduino.h>
 /********************************************************
   EQG2HBX program definitions
   ===========================
  *********************************************************/
  
-#ifndef EQG2HBX
-#define EQG2HBX
+#pragma once
 
-// Real Time Clock Libraries
-// Time related libararies
-#include <DS1307RTC.h>            //https://www.pjrc.com/teensy/td_libs_DS1307RTC.html
-//#include <TimeLord.h>             //https://github.com/probonopd/TimeLord
-#include <TimeLib.h>              //https://github.com/PaulStoffregen/Time
-#include <TimeAlarms.h>           //https://github.com/PaulStoffregen/TimeAlarms
+#include <FS.h>   // Include the SPIFFS library
+#include <SPIFFS.h>
+#include <Preferences.h>
+#include "ESP32Ticker.h"
 
-
-// Pin definitions for LED indicators
-// ==================================
-#ifdef m2560
-#define AzLED           7           // Mega2560 D7
-#define AltLED          6           // Mega2560 D6
-#define FROMEQG         5           // Mega2560 D5
-#define FROMHBX         4           // Mega2560 D4
-#endif
-#ifdef  mESP32
-#define AzLED           33
-#define AltLED          25
-#define FROMEQG         26
-#define FROMHBX         27
-#endif
-
-// Jumpers to run monitor or test
-// ==============================
-#ifdef m2560
-#define MONITORHBX      11          // Mega2560 D3
-#define TESTHBX         9           // Mega2560 D2
-#endif
-#ifdef  ESP32
-#define MONITORHBX      35
-#define TESTHBX         32
-#endif
+void CheckETXState( unsigned char );
 
 /************************************************************** 
  *  Common variables
  **************************************************************/
-unsigned int  eepromlength = 256;
-unsigned long DelayTimer;         // Delay timer
-unsigned long StatusTimer;        // H2X delay timer
+String EQ2HBX_Version = "EQG2HBX V1.11";
+
+Preferences preferences;
+unsigned long DelayTime;          // Delay timer
 unsigned long StatusTime;         // H2X interval time
+
+unsigned long StatusTimer;        // H2X status delay timer
+unsigned long StateTimer;					// H2X state delay timer
+bool					StateSelect;
+bool					StatusSelect;
+int						StatusCount;
+
+Ticker AlarmCheckETX;
 
 long          P1;
 long          P2;
@@ -90,15 +70,6 @@ unsigned char EQGDECAutoguide = 0;		// EQG	Autoguide rate
 unsigned char EQGRxState = 1;				  // EQG	State 
 unsigned char EQGRxChar;					    // EQG	Rx Character
 unsigned char EQGRxCount;             // EQG  # parameters
-
-#define dbgLEN  256                   // Communications buffers
-#define dbgMASK dbgLEN-1              // Index wraps to 0
-unsigned char dbgRxBuffer[dbgLEN];    // Hold data from EQG
-         char dbgCommand[dbgLEN];     // Hold data from EQG
-unsigned char dbgRxiPtr = 0;          // Pointer for input from EQG
-unsigned char dbgRxoPtr = 0;          // Pointer for output from EQG Rx buffer
-unsigned char dbgFlag = 0;            // Received a command
-unsigned char dbgIndex = 0;           // Index into command
         float f;
 unsigned long v;
 
@@ -107,9 +78,9 @@ unsigned long v;
  *	HBX variables
  **************************************************************/
 
-          long H2XStart = 0;        // Used to count uS ticks
-          long H2XTimer = 0;        // Used to count uS ticks
-unsigned char EQGMotorStatus;        // Current State of motor
+unsigned long H2XStart = 0;        // Used to count uS ticks
+unsigned long H2XTimer = 0;        // Used to count uS ticks
+unsigned char EQGMotorStatus;      // Current State of motor
   
 typedef struct {
   unsigned char MotorType;          // Current type of motor
@@ -122,22 +93,25 @@ typedef struct {
 
   unsigned char HBXBitCount;        // #bits left to process
   unsigned char Command;            // Current command
+	unsigned char Flip;								// Axis flipped - Alt for negative, Az probably never
   unsigned char HBXData;					  // Data byte from HBX Bus
   unsigned char HBXP1;						  // HBX status/data - MSB
-  unsigned char HBXP2;						  // HBX status/data
-  unsigned char HBXP3;						  // HBX status/data - LSB
-  unsigned char HBXP4;              // HBX status/data - encoder error
+  unsigned char HBXP2;						  // HBX status/data - LSB
+  unsigned char HBXP3;						  // HBX status/data - PWM % related
+  unsigned char HBXP4;              // HBX status/data - single flag bit related to battery alarm ( 0 = OK )
   unsigned char HBXCount;           // HBX valid data count
   unsigned char HBXLEDI;            // LED current value from Motor  
   unsigned long DirnSpeed;          // Speed, Direction for Motor to move
            char HBXGuide;           // Guide speed
            char HBXSnapPort;        // Snap port
+					 char	LEDValue;						// Polar LED brightness
            char ETXSpeedCommand;    // Current ETX Speed command
-           long Speed;              // Move speed
+           long EQGSpeed;           // EQG Move speed
+					 long ETXSpeed;           // ETX Move speed
            long TargetSpeed;        // Target Move speed
-           char SpeedState;         // Slowdown/speedup state
+        uint8_t SpeedState;         // Slowdown/speedup state
            long Position;           // Current position
-           long Target;             // Current target delta
+           long Target;             // Current target
            long Increment;          // Change in position for motor speed calcs  
            long SlowDown;           // Point to change to lower speed
            long Offset;             // Current adjustment
@@ -153,17 +127,19 @@ typedef struct {
 // b-Value = (6460.09 * MeadeRatio * a-Value * 15.041069) / 1,296,000            
   unsigned long aVALUE;             // For rate calculations
   unsigned long bVALUE;             // For rate calculations
-           long OneDegree;          // For slew comparisons
+  unsigned long OneDegree;          // For slew comparisons
 
 // SIDEREALRATE = 6460.09 * MeadeRatio
 // SOLARRATE = (SOLARSECS/SIDEREALSECS) * SIDEREALRATE
 // LUNARRATE = (SOLARSECS/SIDEREALSECS) * SIDEREALRATE
-// DEGREERATE1 = 240 * SIDEREALRATE
+// DEGREERATE1 = SLEW7(240) * SIDEREALRATE
+// BASERATE = (b * arcsec360) / a
 
-            long SIDEREALRATE;       // Constants
-            long SOLARRATE;
-            long LUNARRATE;
-            long DEGREERATE1;
+  unsigned long SIDEREALRATE;       // Constants
+  unsigned long SOLARRATE;
+  unsigned long LUNARRATE;
+	unsigned long BASERATE;
+	unsigned long DEGREERATE1;
 
 // PEC = a-VALUE / WormTeeth;
   unsigned long PEC;                // PEC period (period of worm tooth)
@@ -180,40 +156,69 @@ typedef struct {
   float         GbxRatio;           // GearBox Ratio
   float         XferRatio;          // Gearbox Transfer Ratio (usually 1)
   unsigned long WormTeeth;          // Number of Worm teeth
+	char					Telescope[16];			// name of scope
 } axis_values;
 
-unsigned char telescope = 0;        // Default telescope (ETX60)
-
-axis_values ratio[16][2] =                             // 16 scopes, Az, Alt
+axis_values ratio[16][2] =																	// 16 scopes, Az, Alt
   {
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{256, 50, 1, 350}, {256, 50, 1, 350}},                 // LX200
-    {{500, 36, 1, 225}, {500, 36, 1, 225}},                 // LX850
-    {{256, 50, 1, 180}, {256, 50, 1, 180}},                 // LX200/400/500
+    {{36, 91.1458333, 1, 94, "ETX60"}, {36, 157.5, 1, 58, "ETX60"}},          // ETX60/70/80
+		{{36, 91.1458333, 1, 94, "ETX70"}, {36, 157.5, 1, 58, "ETX70"}},          // ETX60/70/80
+		{{36, 91.1458333, 1, 94, "ETX80"}, {36, 157.5, 1, 58, "ETX80"}},          // ETX60/70/80
+		{{108, 50, 1, 144, "LXD55"}, {108, 50, 1, 144, "LXD55"}},                 // LXD55/75, LX70-GTS
+		{{108, 50, 1, 144, "LXD75"}, {108, 50, 1, 144, "LXD75"}},                 // LXD55/75, LX70-GTS
+		{{108, 50, 1, 144, "LXD70"}, {108, 50, 1, 144, "LXD70"}},                 // LXD55/75, LX70-GTS
+		{{108, 53.5859375, 1, 154, "LX90"}, {108, 53.5859375, 1, 154, "LX90"}},		// LX90, LT, LX80AltAz
+		{{108, 53.5859375, 1, 154, "LT"}, {108, 53.5859375, 1, 154, "LT"}},				// LX90, LT, LX80AltAz
+		{{108, 53.5859375, 1, 154, "LX80"}, {108, 53.5859375, 1, 154, "LX80"}},		// LX90, LT, LX80AltAz
+		{{256, 50, 1, 350, "LX200"}, {256, 50, 1, 350, "LX200"}},                 // LX200
+    {{500, 36, 1, 225, "LX850"}, {500, 36, 1, 225, "LX850"}},                 // LX850
+    {{256, 50, 1, 180, "LX400"}, {256, 50, 1, 180, "LX400"}},                 // LX400/500
+		{{36, 205.3330000, 1, 144, "DSEXT"}, {36, 205.3330000, 1, 144, "DSEXT"}}, // DS external
+		{{36, 410.6660000, 1, 100, "DHEXT"}, {36, 157.5, 1, 58, "DHEXT"}},        // DH external/114EQs/4504s  
 
-    {{108, 53.5859375, 1, 154}, {108, 53.5859375, 1, 154}}, // LX90, LT, LX80AltAz
-    {{108, 50, 1, 144}, {108, 50, 1, 144}},                 // LXD55/75, LX70-GTS
-    {{36, 205.3330000, 1, 60}, {36, 205.3330000, 1, 60}},   // ETX-xxx, DS-xxx
-    {{36, 91.1458333, 1, 83}, {36, 144.7362076, 1, 66}},    // ??
-
-    {{36, 205.3330000, 1, 144}, {36, 205.3330000, 1, 144}}, // DS external
-    {{36, 410.6660000, 1, 100}, {36, 157.5, 1, 58}},        // DH external/114EQs/4504s  
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}},          // ETX60/70/80
-    {{36, 91.1458333, 1, 94}, {36, 157.5, 1, 58}}           // ETX60/70/80
+		{{36, 205.3330000, 1, 60, "ETXnn"}, {36, 205.3330000, 1, 60, "ETXnn"}},   // ETX-xxx, DS-xxx
+		{{36, 91.1458333, 1, 83, "ETX??"}, {36, 144.7362076, 1, 66, "ETX??"}}    // ??
   };
 
-unsigned long PreviousTime;              // Used in HBX Monitor, Testing
+unsigned char scopetype;        // Default telescope	(ETX60)
+unsigned char mounttype;        // Default mounttype	(ALTAZ)
+unsigned char protocoltype;			// Default protocol		(UDP)
+unsigned char modetype;					// Default station		(AP)
+
+unsigned char scopedefault = 0;        // Default telescope	(ETX60)
+unsigned char mountdefault = 0;        // Default mounttype	(ALTAZ)
+unsigned char protocoldefault = 0;			// Default protocol		(UDP)
+unsigned char modedefault = 0;					// Default station		(AP)
+
+String scope;                       // Text is in Meade Telescope array
+String mount;
+String protocol;
+String mode;
+
+char mountDesc[3][8] = {"ALTAZ", "GEM", "FORK"};
+char protocolDesc[3][8] = {"UDP", "NOW", "SERIAL"};
+char modeDesc[3][16] = {"WIFI_AP", "WIFI_STA", "WIFI_STA_AP"};
+
+char* an0 = (char*)"Bad";
+char* an1 = (char*)"Az ";
+char* an2 = (char*)"Alt";
+char * axis_name[3] = { an0, an1, an2 };
+
+char SpeedStateDesc[4][16] = {"ChangeToStep", "Slowing1", "Slowing2", "Stopped"};
+
 
 // Testing only
+
+Ticker AlarmDebugPrint;
+#define dbgLEN  256                   // Communications buffers
+#define dbgMASK dbgLEN-1              // Index wraps to 0
+unsigned char dbgRxBuffer[dbgLEN];    // Hold data from EQG
+         char dbgCommand[dbgLEN];     // Hold data from EQG
+unsigned char dbgRxiPtr = 0;          // Pointer for input from EQG
+unsigned char dbgRxoPtr = 0;          // Pointer for output from EQG Rx buffer
+unsigned char dbgFlag = 0;            // Received a command
+unsigned char dbgIndex = 0;           // Index into command
+
 unsigned char TestCount;
 unsigned long TestLoopTime;
-
-// Monitor only
-unsigned char DetectedClock;
-
-#endif
+unsigned long PreviousTime;              // Used in HBX Monitor, Testing
