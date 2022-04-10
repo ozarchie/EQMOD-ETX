@@ -1,8 +1,14 @@
+/**@file*/
 /*
- * Copyright 2017, 2018 John Archbold
+ * Copyright 2017, 2018, 2020 John Archbold
 */
-#include <Arduino.h>
-#include <stdio.h>
+#include "Hardware.h"
+#include "ETXProtocol.h"
+#include "EQGProtocol.h"
+#include "EQG2HBX.h"
+#include "HBXComms.h"
+#include "HBXFileSystem.h"
+#include "HBXWiFiServer.h"
 /*
 // EQG Protocol description
 // Courtesy Andrew Johansen - Yahoo Roboscope Group
@@ -12,19 +18,15 @@
   :CbDDDDDD[0D]
   C = command     ( a..z, A..Z )
   b = controller  ( 1 = Az, 2 = Alt, 3 = both )
-  
   DDDDDD = data ( little endian )   uses 24bit little endian ( unless its a bitmapped command like :G )
-  
 //-------------------------------------------------------------------------------------------------
 
 // Receive from EQG
 ===================
  "=DDDDDD[0D]"                  // Data
  "!E[0D]"                       // Error
- 
   = means success
   DDDDDD = data ( little endian )   uses 24bit little endian ( unless its a bitmapped command like :f, :q )
-  
   ! means error
   E is reason code
   Error E = 0  Invalid Command     // the command doesn't apply to the model
@@ -36,7 +38,6 @@
             6
             7
             8  Invalid PPEC model
-            
 //-------------------------------------------------------------------------------------------------
 
 Values for Bytes sent
@@ -77,7 +78,6 @@ j  0    6  Get Current Axis position.            // =llhhLL[0D]  Cardinal encode
                                                  // DEC             #x800000 = 0,    pointing at West Horizon in Sth Hemi
                                                  // DEC             #xA26C80 = -90,  pointing at Polar South  in Sth Hemi
                                                  // RA              #x800000 = 0,    CW shaft down
-
 k  1    6  :kx0[0D]=llhhLL[0D]   gets running microstep count since last start/reset
            :kx1[0D]=llhhLL[0D]   gets running microstep count since last start/reset  then resets count
            // :k  works on EQ6Pro, but not AZEQ5, AZEQ6, EQ8
@@ -89,10 +89,10 @@ n  0    2  Read EEProm Addr                      // =DD[0D]    used with :C  for
 o ***
 p ***
 q  6    6  :qx000000[0D]=000000[0D]    if axis is CW  from home ( ie -ve ) just after home sensor trip has been reset
-                        =FFFFFF[0D]               CCW from home ( ie +ve ) just after home sensor trip has been reset )
+                        =FFFFFF[0D]               CCW from home ( ie +ve ) just after home sensor trip has been reset
                         =llhhLL[0D]    if sensor has tripped since reset ( use :W to clear data first )
            // AZEQ5 returns =000080 for Az and Alt
-           :qx010000[0D]=ABCDEF[0D]  ie the bitmapped nibbles for current status
+:qx010000[0D]=ABCDEF[0D]  ie the bitmapped nibbles for current status
            // A    8  not defined
            //      4  not defined
            //      2  PPEC ON
@@ -210,13 +210,13 @@ When setting "Slew" data, it also requires a set procedure
 Again :G sets direction and speed "range", and must be sent when stopped.
 :I is used to set the speed.
 The value used is basically the no of timer interrupts per microstep
-:I := ( :b * 1296000 / :a ) / Speed    ( where Speed is in arcsec/sec )
-Speed = g*(b*1296000/9024000)/I
+:I := ( :b * 86164 / :a ) / Speed    ( where Speed is in arcsec/sec )
+Speed = g*(b*86164/9024000)/I
 If :I is greater than about 10, then the slew will need to use :G = LoSpeed mode
 If :I is less than 10, then the slew will need :G = HiRate, and :I := I * :g
 In LoSpeed mode, once moving, simply resending a new :I will cause the speed to change.
 In HiSpeed mode, you must issue a stop, resend :G, reset :I then restart.
-:b = :I * Speed/g * :a / 1296000
+:b = :I * Speed/g * :a / 86164
 */
 
 /********************************************************
@@ -228,19 +228,20 @@ In HiSpeed mode, you must issue a stop, resend :G, reset :I then restart.
 // ===============================
 void EQGState(void) {
   while ((EQGRxiPtr != EQGRxoPtr) && (EQGDone == 0)) {
-      digitalWrite(FROMEQG, HIGH);             // Set Indicator LED
-
-    if (dbgFlag == 1) {
-//      if (EQGRxBuffer[EQGRxoPtr] == 'j')
-//        dbgFlag = 0;
+   if (dbgFlag == 1) {
+      if (EQGRxBuffer[EQGRxoPtr] == 'j')
+        dbgFlag = 0;
     }
     if (EQGRxBuffer[EQGRxoPtr] == ':') {
       dbgSerial.println("");
-      dbgSerial.print("--- ");
+      dbgSerial.print(">>> ");
       dbgFlag++;
     }
     if (dbgFlag) {
-      dbgSerial.write(EQGRxBuffer[EQGRxoPtr]);
+			if ((EQGRxBuffer[EQGRxoPtr] != CR) && (EQGRxBuffer[EQGRxoPtr] != LF))
+			dbgSerial.write(EQGRxBuffer[EQGRxoPtr]);
+			else dbgSerial.write('.');
+//      dbgSerial.write(EQGRxBuffer[EQGRxoPtr]);
     }
           
       EQGRxChar = EQGRxBuffer[EQGRxoPtr++];   // Get a character
@@ -289,22 +290,24 @@ void EQGState(void) {
           EQGMOTOR = EQGRADEC - '0';
 					if ((EQGRADEC > '0') && (EQGRADEC < '3')) {
 						EQGRxCount++;
-            switch (EQGCmnd) {    // Commands that send additional bytes
+            switch (EQGCmnd) {    // Commands that have additional bytes
+							case 'q':           // Get mount assets
               case 'A':           // Not used - Set Register Addr
               case 'B':           // Unknown
               case 'C':           // Not done - Set EEPROM Addr
               case 'E':           // Set Current Position
               case 'G':           // Set Move direction and speed multiplier
-              case 'H':           // Set Target Position
+              case 'H':           // Set GoTo Target Increment
               case 'I':           // Set Speed
-              case 'M':           // Set Speed Slowdown Point ??
+              case 'M':           // Set BreakPoint Increment
               case 'N':           // Not done - Set EEPROM
               case 'O':           // Not done - Set trigger (0-off,1-on)
               case 'P':           // Set AutoGuide Speed
               case 'R':           // Not done - Set Register
-              case 'S':           // Not done - Set absolute goto target
+              case 'S':           // Not done - Set GoTo Target
               case 'T':           // Unknown
-              case 'U':           // Not done - Set Slowdown point ??
+              case 'U':           // Not done - Set Break Step
+							case 'V':						// Set Polar LED brightness
                 EQGRxState++;     // Yes, so next state
                 break;
               
@@ -344,6 +347,7 @@ void EQGState(void) {
               case 'G':             // Set direction, range
               case 'N':             // Set EEPROM (:C) to xHH
               case 'R':             // Set Register (:A) to xHH
+							case 'V':							// Set Polar LED brightness ro xHH
 								EQGRxState = EQG_INTERPRET;
 							break;
 							default:
@@ -396,7 +400,7 @@ void EQGState(void) {
 					if ((EQGRxChar == 0x0d) && (EQGRxCount >= 3)) {
 						EQGRxState = EQG_CMNDSTART;    // Reset state machine
 						switch (EQGCmnd) {		
-                                  // Commands that send no data
+                                  // Commands that have no data
 							case 'a':           // Read steps per rotation
 							case 'b':           // Read tracking scale
 							case 'c':           // Read Motor Speed Change
@@ -416,8 +420,9 @@ void EQGState(void) {
 								EQGDone++;
 							  break;
 
-                                  // Commands that send three bytes
+                                  // Commands that have three bytes
                                   // ==============================
+							case 'q':						// Read mount assets
 							case 'E':           // Set current position
 							case 'H':           // Set target position
 							case 'I':           // Set GoTo speed
@@ -433,7 +438,7 @@ void EQGState(void) {
 								}
 							  break;
 
-                                  // Commands that send two bytes
+                                  // Commands that have two bytes
               case 'C':           // Set EEPROM address
               if (EQGRxCount == (3 + 4)) {
                   EQGDone++;
@@ -445,11 +450,12 @@ void EQGState(void) {
                 }
                 break;
 
-                                  // Commands that send one byte
+                                  // Commands that have one byte
               case 'A':           // Set register address
               case 'G':           // Set direction, range
               case 'N':           // Set EEPROM (:C) to xHH
               case 'R':           // Set Register (:A) to xHH
+							case 'V':           // Set LED Brightness to xHH
               if (EQGRxCount == (3 + 2)) {
 									EQGDone++;
 								}
@@ -460,7 +466,7 @@ void EQGState(void) {
 							  }
 							  break;
 
-                                  // Commands that send one nibble
+                                  // Commands that have one nibble
               case 'P':           // Set autoguide speed
               case 'O':           // Set Snap Port
 								if (EQGRxCount == (3 + 1)) {
@@ -491,16 +497,15 @@ void EQGState(void) {
 					EQGRxState = EQG_CMNDSTART;         
 		} // End - switch (EQGRxState)
   } // END - while ((EQGRxiPtr != EQGRxoPtr) && (EQGDone == 0))
-  digitalWrite(FROMEQG, LOW);             // Clear Indicator LED
 }
 
 void EQGError(unsigned char errorbyte) {
-  EQGTx('!') ;        // Failure - Bad Parameters
+  EQGTx('!') ;													// Failure - Bad Parameters
   EQGTx(errorbyte);
   EQGTx(CR);
-  EQGDone = 0;        // Process errors
+  EQGDone = 0;													// Process errors
   EQGRxState = EQG_CMNDSTART;
-  EQGRxCount = 0;     // Count for # parameters
+  EQGRxCount = 0;												// Count for # parameters
   EQGErrorValue = 0;
 }
 
@@ -510,7 +515,6 @@ void EQGAction(void) {
 
 		EQGDone = 0;						            // Reset flag
     EQGRxState = EQG_CMNDSTART;
-		digitalWrite(FROMEQG, HIGH);        //  and status LED
 		EQGTx('=');                         // Answer (with parameters)
 
 		switch (EQGCmnd) {
@@ -533,20 +537,20 @@ void EQGAction(void) {
 				  break;
 
 				case 'e':                     // Request version
-					EQGTxHex6(EQGVERSION);	    // V5.01
+					EQGTxHex6(EQGVERSION);	    //
 				  break;
 
 				case 'f':                     // Request motor status  
 
 // EQGMotorStatus bit definitions
-// A: nibble 1
+// A nibble1
 // MOVESLEW        0x0001      // Step(0)        Slew(1)
 // MOVEDECR        0x0002      // Increasing(0)  Decreasing(1)
 // MOVEHIGH        0x0004      // Low(0)         High(1)
-// B: nibble2
+// B nibble2
 // MOVEAXIS        0x0010      // Stopped(0)     Moving(1)
 // MOVEFACE        0x0020      // Front(0)       Rear(1)
-// C: nibble3
+// C nibble3
 // MOVEACTIVE      0x0100      // Inactive(0)    Active(1)
 
             EQGTxHex3(axis[EQGMOTOR].EQGMotorStatus);
@@ -558,69 +562,72 @@ void EQGAction(void) {
 				  break;
 
 				case 'j':                     // Request axis position    
-          EQGTxHex6(axis[EQGMOTOR].Position);
+					EQGTxHex6(axis[EQGMOTOR].Position);
 				  break;
 
-				case 'm':                       // GET Point at which to change from fast to slow
+				case 'm':																	// GET Point at which to change from fast to slow
 					EQGTxHex6(axis[EQGMOTOR].SlowDown);
 				  break;
+
+				case 'q':																	// GET mount capabilities
+					EQGTxHex6(EQGASSETS);										// Say EQ and AZ
+					break;
 
 				case 's':                                 // PEC period
 					EQGTxHex6(axis[EQGMOTOR].PEC);
 				  break;
 
 				case 'E':							                    // Set current motor position
-
-dbgSerial.println(""); dbgSerial.print("EQG:P Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print("> POSITION ");
-dbgSerial.print(", P1: "); dbgSerial.print(EQGP1, HEX);
-
-          axis[EQGMOTOR].Position = EQGP1;
-          break;
+					if ((EQGP1 == 0x800000) || (EQGP1 == 0x85049c))
+						break;
+          else axis[EQGMOTOR].Position = EQGP1;
+						break;
 
 				case 'F':                                 // Initialize and activate motors
-
-dbgSerial.println(""); dbgSerial.print("EQG:F Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print("> ENERGISE ");
-
           axis[EQGMOTOR].EQGMotorStatus |= MOVEACTIVE;      
           axis[EQGMOTOR].ETXMotorStatus |= MOVEACTIVE;      
 				  break;
 
-				case 'G':                           // EQG 'G' Command      :GxAB[0D]
+				case 'G':																	// EQG 'G' Command      :GxAB[0D]
 
-             // See below for A
+// See below for A
+// ===============
 // B nibble
-             // B = '0'  +CW  and Nthn Hemi
-             //     '1'  -CCW and Nthn Hemi
-             //     '2'  +CW  and Sthn Hemi
-             //     '3'  -CCW and Sthn Hemi
-             // xxx0   0 means +ve, 1 = -ve  "motor" direction, ie code takes care of whats N/S/E/W etc
-             //        +ve speed in RA  is Axis moves CW when viewed from pole
-             //        +ve speed in DEC is Axis moves CCW when viewed from above
-             // xx0x   0 means Nthn Hemi else Sthn Hemi ( ST4 guiding related ) ?????
-             // Note! when using :S type gotos, the direction bit here "appears" to be ignored
-             // Also note that EQMOD does not appear to send the Hemisphere bit
-             // 
-             // xxx0      CW(0)        CCW(1)       DIRECTION
-             // xx0x      North(0)     South(1)     HEMISPHERE
-
-
-dbgSerial.println(""); dbgSerial.print("EQG:G Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print("> DIRECTION+SPEED ");
-dbgSerial.print(", P1: "); dbgSerial.print(EQGP1, HEX);
+// --------
+						// B = '0'  +CW  and Nthn Hemi
+            //     '1'  -CCW and Nthn Hemi
+            //     '2'  +CW  and Sthn Hemi
+            //     '3'  -CCW and Sthn Hemi
+            // xxx0   0 means +ve, 1 = -ve  "motor" direction, ie code takes care of whats N/S/E/W etc
+            //        +ve speed in RA  is Axis moves CW when viewed from pole
+            //        +ve speed in DEC is Axis moves CCW when viewed from above (OTA horizontal, facing E->W ?)
+            // xx0x   0 means Nthn Hemi else Sthn Hemi ( ST4 guiding related ) ?????
+            // Note! when using :S type gotos, the direction bit here "appears" to be ignored
+            // Also note that EQMOD does not appear to send the Hemisphere bit
+            // 
+            // xxx0      CW(0)        CCW(1)       DIRECTION
+            // xx0x      North(0)     South(1)     HEMISPHERE
 
 				axis[EQGMOTOR].DirnSpeed = (int)EQGP1;          // Save the command value
+				switch (axis[EQGMOTOR].DirnSpeed & 0x03)	{
+					case 0x00:
+					case 0x02:
+						axis[EQGMOTOR].EQGMotorStatus &= ~MOVEDECR;
+dbgSerial.print(" +CW  ");
+						break;
+					case 0x01:
+					case 0x03:
+						axis[EQGMOTOR].EQGMotorStatus |= MOVEDECR;
+dbgSerial.print(" -CCW ");
+						break;
+					default:
+						break;
+				}
 
-        if (EQGP1 & DIRECTION) {
-          axis[EQGMOTOR].EQGMotorStatus |= MOVEDECR;     dbgSerial.print(" DEC ");
-        }
-        else {
-          axis[EQGMOTOR].EQGMotorStatus &= ~MOVEDECR;    dbgSerial.print(" INC ");
-        }
-
+//	When setting "Slew" data, it also requires a set procedure
+//	G sets direction and speed "range", and must be sent when stopped.
 // A nibble
-             // A = '0' high speed GOTO slewing,      doesnt make "bitmapped" sense, but it is as coded by SkyWatcher????? ?????
+             // A = '0' high speed GOTO slewing,      doesnt make "bitmapped" sense, but it is as coded by SkyWatcher
              //     '1' low  speed slewing mode,      all other bytes use bitmapping ( incl :f ), this doesnt
              //     '2' low  speed GOTO mode,
              //     '3' high speed slewing mode
@@ -633,115 +640,73 @@ dbgSerial.print(", P1: "); dbgSerial.print(EQGP1, HEX);
           case 00:    // 0 HIGH SPEED GOTO
             axis[EQGMOTOR].EQGMotorStatus &= ~MOVESLEW;     // GoTo target
             axis[EQGMOTOR].EQGMotorStatus |= MOVEHIGH;      // Enable high speed multiplier
-            dbgSerial.print("HIGH SPEED GOTO");
+						axis[EQGMOTOR].TargetSpeed = axis[EQGMOTOR].DEGREERATE1;
+dbgSerial.print("HIGH SPEED GOTO ");
             break;
           case 01:    // 1 LOW  SPEED SLEW
             axis[EQGMOTOR].EQGMotorStatus |= MOVESLEW;      // Just move the axis
             axis[EQGMOTOR].EQGMotorStatus &= ~MOVEHIGH;     // Disable high speed multiplier
-            dbgSerial.print("LOW  SPEED SLEW");
+						axis[EQGMOTOR].TargetSpeed = (axis[EQGMOTOR].SIDEREALRATE);
+dbgSerial.print("LOW  SPEED SLEW ");
             break;
           case 02:    // 2 LOW  SPEED GOTO
             axis[EQGMOTOR].EQGMotorStatus &= ~MOVESLEW;     // GoTo target
             axis[EQGMOTOR].EQGMotorStatus &= ~MOVEHIGH;     // Disable high speed multiplier
-            dbgSerial.print("LOW SPEED GOTO");
+						axis[EQGMOTOR].TargetSpeed = (axis[EQGMOTOR].DEGREERATE1 << 3);
+dbgSerial.print("LOW  SPEED GOTO ");
             break;
           case 03:    // 3 HIGH SPEED SLEW
             axis[EQGMOTOR].EQGMotorStatus |= MOVESLEW;      // Just move the axis
             axis[EQGMOTOR].EQGMotorStatus |= MOVEHIGH;      // Enable high speed multiplier
-            dbgSerial.print("HIGH SPEED SLEW");
+						axis[EQGMOTOR].TargetSpeed = axis[EQGMOTOR].DEGREERATE1;
+dbgSerial.print("HIGH SPEED SLEW ");
             break;
         }
+dbgSerial.print(axis[EQGMOTOR].TargetSpeed);
 
-        axis[EQGMOTOR].ETXMotorStatus = axis[EQGMOTOR].EQGMotorStatus; // Copy the status for ETX
- /// JMA TODO
- /*      
-        EQGP1 |= HEMISPHERE;                              // EQMOD is not setting HEMISPHERE
-  /// JMA 
-   
-        if (EQGP1 & HEMISPHERE) {                         // Flip DEC movement if southern hemisphere
-          if (EQGMOTOR == MotorAlt) {
-            if (axis[EQGMOTOR].ETXMotorStatus & MOVEDECR) {
-              axis[EQGMOTOR].ETXMotorStatus &= ~MOVEDECR;   dbgSerial.print(" S  CW ");
-            }
-            else {
-              axis[EQGMOTOR].ETXMotorStatus |= MOVEDECR;    dbgSerial.print(" S CCW ");
-            }
-          }
-        }
-  */ 
+        axis[EQGMOTOR].ETXMotorStatus = axis[EQGMOTOR].EQGMotorStatus; // Copy the status for ETXProtocol
 				break;
 
-				case 'H':                                      // Set the goto target increment
+				case 'H':                                      				// Set the goto target increment
           axis[EQGMOTOR].Increment = EQGP1;
           if (axis[EQGMOTOR].EQGMotorStatus & MOVEDECR)
             axis[EQGMOTOR].Target = axis[EQGMOTOR].Position - axis[EQGMOTOR].Increment;   // subtract the relative target
           else
-            axis[EQGMOTOR].Target = axis[EQGMOTOR].Position + axis[EQGMOTOR].Increment;   // add the relative target
-          
+            axis[EQGMOTOR].Target = axis[EQGMOTOR].Position + axis[EQGMOTOR].Increment;   // add the relative target      
           axis[EQGMOTOR].MotorControl |= GoToHBX;
- /* JMA TODO
-          if (EQGP1 > 0x1000)                                                             // Set slew flag if over 0x1000 steps
-            (axis[EQGMOTOR].MotorControl |= SlewHBX);
-*/
-dbgSerial.println(""); dbgSerial.print("EQG:H Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print("> TARGET ");
-dbgSerial.print("Pos: "); dbgSerial.print(axis[EQGMOTOR].Position, HEX);
-dbgSerial.print(", Inc: "); dbgSerial.print(axis[EQGMOTOR].Increment, HEX);
-dbgSerial.print("->Tgt: "); dbgSerial.print(axis[EQGMOTOR].Target, HEX);
-dbgSerial.print(" Speed: "); dbgSerial.print(axis[EQGMOTOR].Speed, HEX);
-dbgSerial.print(" TargetSpeed: "); dbgSerial.println(axis[EQGMOTOR].TargetSpeed, HEX);
-
 				  break;
 
 				case 'I':   // Set motor speed
-//        long Speed;
-
-// From EQMOD
-// Multiplier   = EQGSidereal / :I
-// MultiplierHi = EQGSidereal*g / :I
-
-// For ETX
-// Speed        = ETXSidereal * Multiplier
-// SpeedHi      = ETXSidereal * MultiplierHi
-
-// Calculation
-// Speed        = SiderealRate * (:ISidereal / )
-// SpeedHi      = SiderealRate * ((Sidereal*g) / :I)
-
-dbgSerial.println(""); dbgSerial.print("EQG:I Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print(">  SET SPEED ");
-dbgSerial.print("SiderealRate: ");  dbgSerial.print(axis[EQGMOTOR].SIDEREALRATE, HEX);
-dbgSerial.print(", SpeedFactor: "); dbgSerial.print(axis[EQGMOTOR].SIDEREALRATE / EQGP1);
 /*
-        if ((axis[EQGMOTOR].EQGMotorStatus & MOVEHIGH)) {
-          EQGF1 = (float)axis[EQGMOTOR].SIDEREALRATE * (((float)axis[EQGMOTOR].SIDEREALRATE * (float)EQG_gVALUE) / (float)EQGP1);
-        }
-        else {
-          EQGF1 = (float)axis[EQGMOTOR].SIDEREALRATE * (float)(axis[EQGMOTOR].SIDEREALRATE / (float)EQGP1);
-        }
-        axis[EQGMOTOR].TargetSpeed = (long)EQGF1;              // Set the target speed
-
-dbgSerial.print(", recalc "); dbgSerial.println(EQGF1);
+					:I is used to set the speed.
+						The value used is basically the number of timer interrupts per microstep
+						------------------------------------------------------------------------
+						I = (b * SiderealSecs / a) / Speed			(where Speed is in arcsec/sec, SiderealSecs=86164.nn)
+						Speed = g * (b * SiderealSecs / a) / I
+						======================================
+						If I is greater than about 10, then the slew will need to use :G = LoSpeed mode
+						If I is less than 10, then the slew will need :G = HiRate, and :I =  :I * :g
+						In LoSpeed mode, once moving, simply resending a new :I will cause the speed to change.
+						In HiSpeed mode, you must issue a stop, resend :G, reset :I then restart.
+						b = I * Speed / g * a / SiderealSecs
 */
-        axis[EQGMOTOR].TargetSpeed = EQGP1;              // Set the target speed
-dbgSerial.print(", Target Speed "); dbgSerial.println(axis[EQGMOTOR].TargetSpeed, HEX);
 
-				  break;
+					axis[EQGMOTOR].EQGSpeed = EQGP1;							// Set EQG speed value (I)
+					axis[EQGMOTOR].TargetSpeed = EQGP1;           // Set ETX target speed
+					axis[EQGMOTOR].TargetSpeed = axis[EQGMOTOR].SIDEREALRATE * ((axis[EQGMOTOR].bVALUE*SIDEREALSECS)/axis[EQGMOTOR].aVALUE) / EQGP1;
+					if (axis[EQGMOTOR].EQGMotorStatus & MOVEHIGH)
+						axis[EQGMOTOR].TargetSpeed *= EQG_gVALUE;
+					if (axis[EQGMOTOR].ETXMotorStatus & MOVEAXIS)      // If already moving
+          	axis[EQGMOTOR].ETXMotorState = ETXStepMotor;     //  update speed
+					break;
 
 				case 'J':             // Tell motor to Go
-          axis[EQGMOTOR].ETXMotorStatus |= MOVEAXIS;                // Signal moving
+					axis[EQGMOTOR].ETXMotorStatus |= MOVEAXIS;                // Signal moving
           axis[EQGMOTOR].ETXMotorState = ETXCheckStartup;           // General entry
-
-dbgSerial.println(""); dbgSerial.print("EQG:J Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print(">");
-dbgSerial.println(" START");
 
 				  break;
 
 				case 'K':							// Tell motor to stop
-dbgSerial.println(""); dbgSerial.print("EQG:K Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.println("> STOP");
-
           axis[EQGMOTOR].EQGMotorStatus |= MOVESLEW;              // Set slew as default
           axis[EQGMOTOR].ETXMotorStatus |= MOVESLEW;              // Set slew as default
           axis[EQGMOTOR].TargetSpeed = 0;
@@ -749,71 +714,255 @@ dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgS
 				  break;
 
         case 'L':             // Tell motor to stop immediately
-dbgSerial.println(""); dbgSerial.print("EQG:L Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.println("> STOP NOW");
-
           axis[EQGMOTOR].EQGMotorStatus |= MOVESLEW;              // Clear speed change
-          axis[EQGMOTOR].TargetSpeed = 0;
+					axis[EQGMOTOR].ETXMotorStatus |= MOVESLEW;              // Set slew as default
+					axis[EQGMOTOR].TargetSpeed = 0;
           axis[EQGMOTOR].ETXMotorState = ETXStopMotor;            // Immediate stop
           break;
 
 				case 'M':             // Set the break point increment
-
           axis[EQGMOTOR].SlowDown = EQGP1;
           if ((axis[EQGMOTOR].EQGMotorStatus & MOVEDECR) == 0)
             axis[EQGMOTOR].SlowDown = axis[EQGMOTOR].Position + axis[EQGMOTOR].SlowDown;  // add the relative target
           else
             axis[EQGMOTOR].SlowDown = axis[EQGMOTOR].Position - axis[EQGMOTOR].SlowDown;  // subtract the relative target
           axis[EQGMOTOR].MotorControl |= GoToHBX;            // Signal pending GoTo
-
-dbgSerial.println(""); dbgSerial.print("EQG:M Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print("> SLOWDOWN ");
-dbgSerial.print("Pos: "); dbgSerial.print(axis[EQGMOTOR].Position, HEX);
-dbgSerial.print(", P1: "); dbgSerial.print(EQGP1, HEX);
-dbgSerial.print("-> SD: "); dbgSerial.print(axis[EQGMOTOR].SlowDown, HEX);
-dbgSerial.print(" Speed: "); dbgSerial.print(axis[EQGMOTOR].Speed, HEX);
-dbgSerial.print(" TargetSpeed: "); dbgSerial.println(axis[EQGMOTOR].TargetSpeed, HEX);
-
 				  break;
 
-        case 'U':             // Set the break point steps
-// JMA TODO          axis[EQGMOTOR].SlowDown = EQGP1;
-
-dbgSerial.println(""); dbgSerial.print("EQG:U Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print("> SLOWDOWN POINT ");
-dbgSerial.print("Pos: "); dbgSerial.print(axis[EQGMOTOR].Position, HEX);
-dbgSerial.print(", P1: "); dbgSerial.print(EQGP1, HEX);
-dbgSerial.print("-> SDP: "); dbgSerial.print(axis[EQGMOTOR].SlowDown, HEX);
-dbgSerial.print(" Speed: "); dbgSerial.print(axis[EQGMOTOR].Speed, HEX);
-dbgSerial.print(" TargetSpeed: "); dbgSerial.println(axis[EQGMOTOR].TargetSpeed, HEX);
-
-          break;
-				
         case 'O':
           axis[EQGMOTOR].HBXSnapPort = (char)EQGP1;
-
-dbgSerial.println(""); dbgSerial.print("EQG:O Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print("> SNAPPORT ");
-dbgSerial.print(", P1: "); dbgSerial.print(EQGP1, HEX);
-
           break;
         
         case 'P':
 					axis[EQGMOTOR].HBXGuide = (char)EQGP1;
-
-dbgSerial.println(""); dbgSerial.print("EQG:P Motor "); dbgSerial.print(EQGMOTOR);
-dbgSerial.print(" <"); dbgSerial.print(axis[EQGMOTOR].EQGMotorStatus, HEX); dbgSerial.print("> GUIDE ");
-dbgSerial.print(", P1: "); dbgSerial.print(EQGP1, HEX);
-
 				  break;
+
+				case 'U':             // Set the break point steps
+// JMA TODO          axis[EQGMOTOR].SlowDown = EQGP1;
+				break;
+
+				case 'V':             // Set the LED brightness
+          axis[EQGMOTOR].LEDValue = EQGP1;
+					break;
 
 				default:
           EQGErrorValue = '0';     // Failure - Bad Command
 				  break;
 			}
       EQGTx(CR);
-      digitalWrite(FROMEQG, LOW);             // Clear Indicator LED
 }
+
+void EQGTxHex(unsigned char data) {
+	if ((data & 0x0f) < 0x0a) EQGTx((data & 0x0f) + 0x30);
+	else EQGTx((data & 0x0f) + 0x37);
+}
+
+void EQGTxHex2(unsigned char data) {
+	EQGTxHex(data >> 4);
+	EQGTxHex(data);
+}
+
+void EQGTxHex3(unsigned int data) {
+	EQGTxHex((unsigned char)data);
+	EQGTxHex((unsigned char)(data >> 4));
+	EQGTxHex((unsigned char)(data >> 8));
+}
+
+void EQGTxHex6(unsigned long data) {
+	EQGTxHex2((unsigned char)data);
+	EQGTxHex2((unsigned char)(data >> 8));
+	EQGTxHex2((unsigned char)(data >> 16));
+}
+
+/**********************************************
+	Debug routines
+***********************************************/
+void dbgRx(void) {
+	while (dbgSerial.available() > 0) {
+		dbgRxBuffer[dbgRxiPtr++] = dbgSerial.read();
+		dbgRxiPtr &= dbgMASK;
+	}
+}
+
+void putbyte(unsigned char data) {
+	dbgSerial.write(data);
+}
+
+void puthexb(unsigned char data) {
+	if (((data >> 4) & 0x0f) < 0x0a) putbyte(((data >> 4) & 0x0f) + 0x30);
+	else putbyte(((data >> 4) & 0x0f) + 0x37);
+	if ((data & 0x0f) < 0x0a) putbyte((data & 0x0f) + 0x30);
+	else putbyte((data & 0x0f) + 0x37);
+}
+
+void putdecb(unsigned char data) {
+	dbgSerial.print(data);
+}
+
+void puthexw(unsigned int data) {
+	puthexb((data >> 8) & 0xFF);
+	puthexb(data & 0xFF);
+}
+
+void putdecw(unsigned int data) {
+	dbgSerial.print(data);
+}
+
+void puthex6(unsigned long data) {
+	puthexb((data >> 16) & 0xFF);
+	puthexw(data & 0xFFFF);
+}
+
+void puthexl(unsigned long data) {
+	puthexw((data >> 16) & 0xFFFF);
+	puthexw(data & 0xFFFF);
+}
+
+void putdecl(unsigned long data) {
+	dbgSerial.print(data);
+}
+
+void EQGSend(unsigned char data) {
+	dbgSerial.write(data);
+}
+
+void EQGSendHex(unsigned char data) {
+	if ((data & 0x0f) < 0x0a) EQGSend((data & 0x0f) + 0x30);
+	else EQGSend((data & 0x0f) + 0x37);
+}
+
+void EQGSendHex2(unsigned char data) {
+	EQGSendHex(data >> 4);
+	EQGSendHex(data);
+}
+
+void EQGSendHex6(unsigned long data) {
+	EQGSendHex2((unsigned char)data);
+	EQGSendHex2((unsigned char)(data >> 8));
+	EQGSendHex2((unsigned char)(data >> 16));
+}
+
+void debugEQG() {
+	dbgSerial.println("");
+	dbgSerial.print("Az:<");
+	dbgSerial.print(axis[AzMotor].EQGMotorStatus, HEX);
+	dbgSerial.print("> Pos: ");
+	dbgSerial.print(axis[AzMotor].Position, HEX);
+	dbgSerial.print(" SD: ");
+	dbgSerial.print(axis[AzMotor].SlowDown, HEX);
+	dbgSerial.print(" Tgt: ");
+	dbgSerial.print(axis[AzMotor].Target, HEX);
+	dbgSerial.print(" Speed: ");
+	dbgSerial.print(axis[AzMotor].ETXSpeed, HEX);
+
+	dbgSerial.print(", Alt:<");
+	dbgSerial.print(axis[AltMotor].EQGMotorStatus, HEX);
+	dbgSerial.print(">Pos: ");
+	dbgSerial.print(axis[AltMotor].Position, HEX);
+	dbgSerial.print(" SD: ");
+	dbgSerial.print(axis[AltMotor].SlowDown, HEX);
+	dbgSerial.print(" Tgt: ");
+	dbgSerial.print(axis[AltMotor].Target, HEX);
+	dbgSerial.print(" Speed: ");
+	dbgSerial.print(axis[AltMotor].ETXSpeed, HEX);
+/*
+	while (dbgRxoPtr != dbgRxiPtr) {
+		dbgCommand[dbgIndex] = dbgRxBuffer[dbgRxoPtr];              // Copy character
+		dbgSerial.write(dbgCommand[dbgIndex]);
+		if ((dbgCommand[dbgIndex] != ':') && (dbgFlag == 0)) {      // Wait for start of command string
+					dbgSerial.write(dbgCommand[dbgIndex]);                // Output to debug and skip
+				}
+		else {
+			if (dbgCommand[dbgIndex] == CR) {
+				dbgCommand[dbgIndex + 1] = 0;
+				processdbgCommand();
+				dbgFlag = 0;
+				dbgIndex = 0;
+			}
+			else {
+				dbgFlag |= 1;
+				dbgIndex += 1;
+			}
+		}
+		dbgRxoPtr += 1;
+		dbgRxoPtr &= dbgMASK;
+	}
+
+}
+
+// Format - ":","Motor","Command","Paramters"
+// Motor			1, 2
+// Command		t, w, g, v, x
+
+void processdbgCommand(void) {
+	unsigned char m, t;
+	char argStr[256];
+
+	dbgSerial.println(""); dbgSerial.print("Scope: "); dbgSerial.println(telescope);
+	dbgSerial.println(dbgCommand);
+
+	strcpy(argStr, &dbgCommand[3]);
+	m = dbgCommand[2] - '1';
+	if ((m == 0) || (m == 1)) {
+		switch (dbgCommand[1]) {
+
+		case 't':
+			t = dbgCommand[3] - '0';
+			if (t > 9) t -= 7;
+			if ((t >= 0) & (t < 16))
+				telescope = t;
+			dbgSerial.println(""); dbgSerial.print("Scope: "); dbgSerial.println(telescope);
+			break;
+
+		case 'w':	// Number of Worm teeth
+			sscanf(argStr, "%ld", &v);
+			dbgSerial.println("");
+			dbgSerial.print("WormTeeth: ");
+			dbgSerial.print(argStr);
+			dbgSerial.print(" ");
+			dbgSerial.println(f);
+			ratio[telescope][m].WormTeeth = v;
+			break;
+
+		case 'g':	// Gearbox Ratio (float)
+			sscanf(argStr, "%f", &f);                 // Warning: you need the float libraries for this
+			dbgSerial.println("");
+			dbgSerial.print("GearBox: ");             // "-Wl,-u,vfscanf -lscanf_flt -lm" in platform.local.txt
+			dbgSerial.print(argStr);
+			dbgSerial.print(" ");
+			dbgSerial.println(f);
+			ratio[telescope][m].GbxRatio = f;
+			break;
+
+		case 'v':	// Number of optical vanes per revolution
+			sscanf(argStr, "%ld", &v);
+			dbgSerial.println("");
+			dbgSerial.print("Vanes: ");
+			dbgSerial.print(argStr);
+			dbgSerial.print(" ");
+			dbgSerial.println(v);
+			ratio[telescope][m].Vanes = v;
+			break;
+
+		case 'x':	// Gear transfer ratio
+			sscanf(argStr, "%f", &f);                 // Warning: you need the float libraries for this
+			dbgSerial.println("");
+			dbgSerial.print("XferRatio: ");           // "-Wl,-u,vfscanf -lscanf_flt -lm" in platform.local.txt
+			dbgSerial.print(argStr);
+			dbgSerial.print(" ");
+			dbgSerial.println(f);
+			ratio[telescope][m].XferRatio = f;
+			break;
+
+		default:
+			break;
+
+		}
+		PrintRatioValues(telescope);
+	}
+	*/
+}
+
 
 /**********************************************
   Handle EQG communications
@@ -821,219 +970,19 @@ dbgSerial.print(", P1: "); dbgSerial.print(EQGP1, HEX);
 bool EQGRx(void) {
   if (EQGSerial.available() == 0)
     return false;
+	digitalWrite(EQGLED, HIGH);
   while (EQGSerial.available() > 0) {
     EQGRxBuffer[EQGRxiPtr++] = EQGSerial.read();
     EQGRxiPtr &= EQGMASK;
   }
+	digitalWrite(EQGLED, LOW);
   return true;
 }
 
+// Just put it in the output buffer
+// Main loop handles transmission
 void EQGTx(unsigned char data) {
   EQGTxBuffer[EQGTxiPtr++] = data;
   EQGTxiPtr &= EQGMASK;
 }
 
-void EQGTxHex(unsigned char data) {
-  if ((data & 0x0f) < 0x0a) EQGTx((data & 0x0f) + 0x30);
-  else EQGTx((data & 0x0f) + 0x37);
-}
-
-void EQGTxHex2(unsigned char data) {
-  EQGTxHex(data >> 4);
-  EQGTxHex(data);
-}
-
-void EQGTxHex3(unsigned int data) {
-  EQGTxHex( (unsigned char) data);
-  EQGTxHex( (unsigned char) (data >> 4));
-  EQGTxHex( (unsigned char) (data >> 8));
-}
-
-void EQGTxHex6(unsigned long data) {
-  EQGTxHex2( (unsigned char) data);
-  EQGTxHex2( (unsigned char) (data >> 8));
-  EQGTxHex2( (unsigned char) (data >> 16));
-}
-
-/**********************************************
-  Debug routines
-***********************************************/
-void dbgRx(void) {
-  while (dbgSerial.available() > 0) {
-    dbgRxBuffer[dbgRxiPtr++] = dbgSerial.read();
-    dbgRxiPtr &= dbgMASK;
-  }
-}
-
-void putbyte(unsigned char data) {
-  dbgSerial.write(data);
-}
-
-void puthexb(unsigned char data) {
-  if (((data>>4) & 0x0f) < 0x0a) putbyte(((data>>4) & 0x0f) + 0x30);
-  else putbyte(((data>>4) & 0x0f) + 0x37);
-  if ((data & 0x0f) < 0x0a) putbyte((data & 0x0f) + 0x30);
-  else putbyte((data & 0x0f) + 0x37);
-}
-
-void putdecb(unsigned char data) {
-  dbgSerial.print(data);
-}
-
-void puthexw(unsigned int data) {
-  puthexb((data>>8) & 0xFF);
-  puthexb(data & 0xFF);
-}
-
-void putdecw(unsigned int data) {
-  dbgSerial.print(data);
-}
-
-void puthex6(unsigned long data) {
-  puthexb((data>>16) & 0xFF);
-  puthexw(data & 0xFFFF);
-}
-
-void puthexl(unsigned long data) {
-  puthexw((data>>16) & 0xFFFF);
-  puthexw(data & 0xFFFF);
-}
-
-void putdecl(unsigned long data) {
-  dbgSerial.print(data);
-}
-
-void EQGSend(unsigned char data) {
-  dbgSerial.write(data);
-}
-
-void EQGSendHex(unsigned char data) {
-  if ((data & 0x0f) < 0x0a) EQGSend((data & 0x0f) + 0x30);
-  else EQGSend((data & 0x0f) + 0x37);
-}
-
-void EQGSendHex2(unsigned char data) {
-  EQGSendHex(data >> 4);
-  EQGSendHex(data);
-}
-
-void EQGSendHex6(unsigned long data) {
-  EQGSendHex2( (unsigned char) data);
-  EQGSendHex2( (unsigned char) (data >> 8));
-  EQGSendHex2( (unsigned char) (data >> 16));
-}
-
-void debugEQG() {
-  dbgSerial.println("");
-  dbgSerial.print("Az:<");
-  dbgSerial.print(axis[AzMotor].EQGMotorStatus, HEX);
-  dbgSerial.print("> Pos: ");
-  dbgSerial.print(axis[AzMotor].Position, HEX);
-  dbgSerial.print(" SD: ");
-  dbgSerial.print(axis[AzMotor].SlowDown, HEX);
-  dbgSerial.print(" Tgt: ");
-  dbgSerial.print(axis[AzMotor].Target, HEX);
-  dbgSerial.print(" Speed: ");
-  dbgSerial.print(axis[AzMotor].Speed, HEX);
-            
-  dbgSerial.print(", Alt:<");
-  dbgSerial.print(axis[AltMotor].EQGMotorStatus, HEX);
-  dbgSerial.print(">Pos: ");
-  dbgSerial.print(axis[AltMotor].Position, HEX);
-  dbgSerial.print(" SD: ");
-  dbgSerial.print(axis[AltMotor].SlowDown, HEX);
-  dbgSerial.print(" Tgt: ");
-  dbgSerial.print(axis[AltMotor].Target, HEX);
-  dbgSerial.print(" Speed: ");
-  dbgSerial.print(axis[AltMotor].Speed, HEX);
-
-/*
-  while (dbgRxoPtr != dbgRxiPtr) {
-    dbgCommand[dbgIndex] = dbgRxBuffer[dbgRxoPtr];              // Copy character
-    dbgSerial.write(dbgCommand[dbgIndex]);
-    if ((dbgCommand[dbgIndex] != ':') && (dbgFlag == 0)) {      // Wait for start of command string
-          dbgSerial.write(dbgCommand[dbgIndex]);                // Output to debug and skip
-        }
-    else {
-      if (dbgCommand[dbgIndex] == CR) {
-        dbgCommand[dbgIndex + 1] = 0;
-        processdbgCommand();
-        dbgFlag = 0;
-        dbgIndex = 0;
-      }
-      else {
-        dbgFlag |= 1;
-        dbgIndex += 1;
-      }
-    }
-    dbgRxoPtr += 1;
-    dbgRxoPtr &= dbgMASK;
-  }
-*/
-}
-
-void processdbgCommand(void) {
-  unsigned char m;
-  int8_t t;
-  char argStr[256];
-  
- strcpy(argStr, &dbgCommand[3]);
-  m = dbgCommand[2] - '1';
-  if ((m == 0) || (m == 1)) {
-    switch (dbgCommand[1]) {
-
-      case 't':
-        t = dbgCommand[3] - '0';
-        if (t > 9) t -= 7;
-        if ((t >= 0) && (t < 16))
-          telescope = t;
-        dbgSerial.println(""); dbgSerial.print("Scope: "); dbgSerial.println(telescope);
-        break;
-
-      case 'w':
-        sscanf(argStr, "%ld", &v);
-        dbgSerial.println("");
-        dbgSerial.print("WormTeeth: ");
-        dbgSerial.print(argStr);
-        dbgSerial.print(" ");
-        dbgSerial.println(f);
-        ratio[telescope][m].WormTeeth = v;
-        break;
-
-      case 'g':
-        sscanf(argStr, "%f", &f);                 // Warning: you need the float libraries for this
-        dbgSerial.println("");
-        dbgSerial.print("GearBox: ");             // "-Wl,-u,vfscanf -lscanf_flt -lm" in platform.local.txt
-        dbgSerial.print(argStr);
-        dbgSerial.print(" ");
-        dbgSerial.println(f);
-        ratio[telescope][m].GbxRatio = f;
-        break;
-
-      case 'v':
-        sscanf(argStr, "%ld", &v);
-        dbgSerial.println("");
-        dbgSerial.print("Vanes: ");
-        dbgSerial.print(argStr);
-        dbgSerial.print(" ");
-        dbgSerial.println(v);
-        ratio[telescope][m].Vanes = v;
-        break;
-
-      case 'x':
-        sscanf(argStr, "%f", &f);                 // Warning: you need the float libraries for this
-        dbgSerial.println("");
-        dbgSerial.print("XferRatio: ");           // "-Wl,-u,vfscanf -lscanf_flt -lm" in platform.local.txt
-        dbgSerial.print(argStr);
-        dbgSerial.print(" ");
-        dbgSerial.println(f);
-        ratio[telescope][m].XferRatio = f;
-        break;
-
-      default:
-        break;
-
-    }
-    PrintRatioValues(telescope);  
-  }
-}
