@@ -1,0 +1,21 @@
+language: python
+python:
+    - "2.7"
+
+# Cache PlatformIO packages using Travis CI container-based infrastructure
+sudo: false
+cache:
+    directories:
+        - "~/.platformio"
+
+env:
+    - PLATFORMIO_CI_SRC=examples/Blinker/Blinker.ino
+    - PLATFORMIO_CI_SRC=examples/Arguments/Arguments.ino
+    - CPPLINT=true
+
+install:
+    - pip install -U platformio
+    - pip install -U cpplint
+
+script:
+    - if [[ "$CPPLINT" ]]; then cpplint --repository=. --recursive --linelength=200 --filter=-build/include  ./src; else platformio ci --board=lolin32 --lib="./src"; fi

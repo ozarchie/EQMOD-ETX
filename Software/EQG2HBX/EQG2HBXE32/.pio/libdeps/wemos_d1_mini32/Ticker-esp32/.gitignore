@@ -1,0 +1,8 @@
+.pioenvs
+.piolibdeps
+.vscode
+lib
+buildexamples.bat
+platformio.ini
+.vscode/c_cpp_properties.json
+.vscode/launch.json
